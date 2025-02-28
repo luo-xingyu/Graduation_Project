@@ -1,0 +1,49 @@
+.yellow-bg {
+    background-color: yellow;
+    }
+
+.card-container {
+    margin-top: 100px; /* 调整卡片向下的距离 */
+}
+
+.logo-text {
+    position: absolute;
+    top: 20px; /* 控制文字距离顶部的距离 */
+    left: 20px; /* 控制文字距离左侧的距离 */
+    font-size: 24px; /* 控制文字大小 */
+    font-weight: bold; /* 控制文字粗细 */
+    color: #333; /* 控制文字颜色 */
+    z-index: 1000; /* 确保文字处于最上层 */
+}
+
+.bg-image {
+    background-image: url('./1.png');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center center;
+    height: 110vh; /* 使背景图片铺满整个视口 */
+}
+
+.text{
+    font-family: 'Comic Sans MS', cursive;
+    margin-bottom: 0; /* 去除默认的底部间距 */
+}
+.subtitle {
+    font-family: 'Comic Sans MS', cursive;
+    margin-left: 20px;
+    color: #aba7a7; /* 设置副标题的字体颜色为灰色 */
+}
+
+.result-container {
+    font-family: 'Comic Sans MS', cursive;
+}
+
+.results-wrapper {
+    display: flex;
+    flex-direction: column;
+    margin-left: 10%; /* 在大屏幕上整体向右移动 */
+}
+
+.result-container {
+    margin-bottom: 20px; /* 设置容器之间的间距 */
+}
