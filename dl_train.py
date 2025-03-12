@@ -1,200 +1,154 @@
-"""
-pip install datasets evaluate scikit-learn torch==1.12.1 transformers
-"""
-
 import argparse
 import os
 import random
-
+from peft import LoraConfig, get_peft_model,TaskType
+from matplotlib import pyplot as plt
+import numpy as np
+from datasets import load_dataset
+import evaluate
+import pandas as pd
+import torch
+from transformers import (
+    AutoModelForSequenceClassification, AutoTokenizer, DataCollatorWithPadding,
+    Trainer, TrainingArguments
+)
 _PARSER = argparse.ArgumentParser('dl detector')
 _PARSER.add_argument(
     '-i', '--input', type=str, help='input file path',
-    default='en'
+    default='hc3'
 )
 _PARSER.add_argument(
-    '-m', '--model-name', type=str, help='model name', default='roberta-base'
+    '-m', '--model-name', type=str, help='model name', default='FacebookAI/roberta-base'
 )
 _PARSER.add_argument('-b', '--batch-size', type=int, default=8, help='batch size')
-_PARSER.add_argument('-e', '--epochs', type=int, default=2, help='batch size')
-_PARSER.add_argument('--cuda', '-c', type=str, default='0', help='gpu ids, like: 1,2,3')
+_PARSER.add_argument('-g', '--gradient_accumulation_steps', type=int, default=2, help='gradient_accumulation_steps')
+_PARSER.add_argument('-e', '--epochs', type=int, default=3, help='epochs')
+_PARSER.add_argument('--device', '-d', type=str, default='cuda:0', help='device: cuda:0/cpu')
 _PARSER.add_argument('--seed', '-s', type=int, default=42, help='random seed.')
 _PARSER.add_argument('--max-length', type=int, default=512, help='max_length')
 _PARSER.add_argument("--pair", action="store_true", default=False, help='paired input')
 _PARSER.add_argument("--all-train", action="store_true", default=False, help='use all data for training')
 
-
 _ARGS = _PARSER.parse_args()
 
-# if len(_ARGS.cuda) > 1:
-#     os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-#     os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'DETAIL'
+def read_train_test(name):
+    print(name)
+    prefix = 'hc3/'  # path to the csv data from the google drive
+    train_name = os.path.join(prefix, name + '_train.csv')
+    test_name = os.path.join(prefix, name + '_test.csv')
+    dataset = load_dataset('csv', data_files={'train': train_name, 'test': test_name})
+    return dataset
 
-# os.environ["OMP_NUM_THREADS"] = '8'
-# os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"  # if cuda >= 10.2
-# os.environ['CUDA_VISIBLE_DEVICES'] = _ARGS.cuda
-
+def compute_metrics(eval_preds):
+    accuracy = evaluate.load("accuracy")
+    logits, labels = eval_preds
+    predictions = np.argmax(logits, axis=-1)
+    return accuracy.compute(predictions=predictions, references=labels)
 
 def main(args: argparse.Namespace):
-    import numpy as np
-    from datasets import Dataset, concatenate_datasets
-    import evaluate
-    import pandas as pd
-    import torch
-    from transformers import (
-        AutoModelForSequenceClassification, AutoTokenizer, DataCollatorWithPadding,
-        Trainer, TrainingArguments
-    )
-
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    def read_train_test(name):
-        print(name)
-        prefix = 'hc3/'  # path to the csv data from the google drive
-        train_df = pd.read_csv(os.path.join(prefix, name + '_train.csv'))
-        test_df = pd.read_csv(os.path.join(prefix, name + '_test.csv'))
-        len(train_df)
-        len(test_df)
-        print(train_df.head())
-        train_dataset = Dataset.from_pandas(train_df)
-        test_dataset = Dataset.from_pandas(test_df)
-        print(train_dataset)
-        print(test_dataset)
-        return train_dataset, test_dataset
-
-    if 'mix' in args.input:
-        data = [read_train_test(args.input.replace('mix', m)) for m in ('text', 'sent')]
-        train_dataset = concatenate_datasets([data[0][0], data[1][0]])
-        test_dataset = concatenate_datasets([data[0][1], data[1][1]])
-    else:
-        train_dataset, test_dataset = read_train_test(args.input)
-
-    if args.all_train:
-        train_dataset = concatenate_datasets([train_dataset, test_dataset])
-        print("Using all data for training..")
-        print(train_dataset)
-        test_dataset = None
-
+    dataset = read_train_test(args.input)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    kwargs = dict(max_length=args.max_length, truncation=True)
-    if args.pair:
-        def tokenize_fn(example):
-            return tokenizer(example['question'], example['answer'], **kwargs)
-    else:
-        def tokenize_fn(example):
-            return tokenizer(example['answer'], **kwargs)
-
-    print('Tokenizing and mapping...')
-    train_dataset = train_dataset.map(tokenize_fn)
-    if test_dataset is not None:
-        test_dataset = test_dataset.map(tokenize_fn)
-
-    # remove unused columns
-    names = ['id', 'question', 'answer', 'source']
-    tokenized_train_dataset = train_dataset.remove_columns(names)
-    if test_dataset is not None:
-        tokenized_test_dataset = test_dataset.remove_columns(names)
-    else:
-        tokenized_test_dataset = None
-    print(tokenized_train_dataset)
-
-    accuracy = evaluate.load("accuracy")
-    def compute_metrics(eval_preds):
-        logits, labels = eval_preds
-        predictions = np.argmax(logits, axis=-1)
-        return accuracy.compute(predictions=predictions, references=labels)
-
-    model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2)
-
+    def preprocess(example):
+        return tokenizer(example['question'], example['answer'],max_length=args.max_length,truncation=True).to(args.device)
+    remove_columns = ['id', 'question', 'answer', 'source']
+    dataset = dataset.map(preprocess,batched=True,remove_columns=remove_columns)
+    train_dataset = dataset['train'].rename_column('label', 'labels')
+    test_dataset = dataset['test'].rename_column('label', 'labels')
+    model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,id2label={0: "Human", 1: "AI"}).to(args.device) # 标签映射
     output_dir = "./results"  # checkpoint save path
-    if args.pair:
-        output_dir += '-pair'
+    peft_config = LoraConfig(
+        task_type=TaskType.SEQ_CLS,  # 序列分类任务
+        inference_mode=False,
+        r=8,  # 低秩矩阵的维度
+        lora_alpha=32,  # 缩放因子
+        lora_dropout=0.05,  # 防止过拟合
+        target_modules=[  # 针对RoBERTa的特定模块
+            "query",
+            "key",
+            "value",
+            "dense"
+        ],
+        bias="none",  # 不训练偏置参数
+    )
+    peft_model = get_peft_model(model, peft_config)
+    peft_model.print_trainable_parameters()
     training_args = TrainingArguments(
         output_dir=output_dir,
         seed=args.seed,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        evaluation_strategy='no' if test_dataset is None else 'steps',
-        eval_steps=2000 if 'sent' in args.input else 500,
-        save_strategy='epoch',
+        gradient_accumulation_steps = args.gradient_accumulation_steps,
+        per_device_eval_batch_size=args.batch_size * 2,
+        evaluation_strategy='steps',
+        eval_steps=100,
+        save_strategy='steps',
+        fp16=True,  # 启用混合精度训练
+        logging_steps=100,
+        logging_dir='./logs',
+        load_best_model_at_end=True,
+        # gradient_checkpointing=True,  # 启用梯度检查点
+        # torch_compile=True,
     )
 
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
     trainer = Trainer(
-        model,
+        peft_model,
         training_args,
-        train_dataset=tokenized_train_dataset,
-        eval_dataset=tokenized_test_dataset,
+        train_dataset=train_dataset,
+        eval_dataset=test_dataset,
         data_collator=data_collator,
         tokenizer=tokenizer,
-        compute_metrics=compute_metrics
+        compute_metrics=compute_metrics,
     )
-
     trainer.train()
-
+    trainer.save_model("./results/AI-detector-1")
+    peft_model.save_pretrained("./results/AI-detector-2")
+    tokenizer.save_pretrained("./results/AI-detector-2")
     # 获取训练过程中的指标
-    train_losses = trainer.state.log_history["train_loss"]
-    eval_losses = trainer.state.log_history["eval_loss"]
-    eval_accuracies = trainer.state.log_history["eval_accuracy"]
+    print(trainer.state.log_history)
+    # 分离训练日志与评估日志
+    train_metrics = [log for log in trainer.state.log_history if 'loss' in log]
+    eval_metrics = [log for log in trainer.state.log_history if 'eval_loss' in log]
+    # 提取训练损失
+    train_losses = [log['loss'] for log in train_metrics]
+    train_steps = [log['step'] for log in train_metrics]
+    # 提取评估指标
+    eval_losses = [log['eval_loss'] for log in eval_metrics]
+    eval_accuracies = [log['eval_accuracy'] for log in eval_metrics]
+    eval_steps = [log['step'] for log in eval_metrics]
 
     # 绘制图表
-    epochs = list(range(1, training_args.num_train_epochs + 1))
-    plt.figure(figsize=(10, 5))
-
-    # 绘制训练和评估损失曲线
+    plt.figure(figsize=(12, 5))
+    # 绘制损失曲线（训练和评估）
     plt.subplot(1, 2, 1)
-    plt.plot(epochs, train_losses, label="Training Loss")
-    plt.plot(epochs, eval_losses, label="Evaluation Loss")
-    plt.xlabel("Epochs")
+    plt.plot(train_steps, train_losses, 'b-', label="Training Loss")
+    plt.plot(eval_steps, eval_losses, 'r--', label="Evaluation Loss")
+    plt.xlabel("Step")
     plt.ylabel("Loss")
-    plt.title("Training and Evaluation Losses")
+    plt.xticks(np.unique(train_steps))
+    plt.title("Training vs Evaluation Loss")
     plt.legend()
-
     # 绘制评估准确率曲线
     plt.subplot(1, 2, 2)
-    plt.plot(epochs, eval_accuracies, label="Evaluation Accuracy")
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.title("Evaluation Accuracy")
-    plt.legend()
-
+    plt.plot(eval_steps, eval_accuracies, 'g-', marker='o')
+    plt.xlabel("Step")
+    plt.ylabel("Accuracy (%)")
+    plt.ylim(0, 1.1)
+    plt.xticks(np.unique(eval_steps))
+    plt.title("Evaluation Accuracy Progress")
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
     plt.show()
 
+
 if __name__ == '__main__':
-    import os
-    # import json
-    # import matplotlib.pyplot as plt
-
-    # # 从train_state.json文件中读取数据
-    # with open('./models/roberta/trainer_state.json', 'r') as file:
-    #     train_state = json.load(file)
-
-    # # 提取损失值和准确率值
-    # loss_values = [log['loss'] for log in train_state['log_history'] if 'loss' in log]
-    # accuracy_values = [log['eval_accuracy'] for log in train_state['log_history'] if 'eval_accuracy' in log]
-
-    # # 创建损失曲线图
-    # plt.figure(figsize=(10, 5))
-    # plt.plot(loss_values, label='Loss', color='blue')
-    # plt.xlabel('Step')
-    # plt.ylabel('Loss')
-    # plt.title('Training Loss')
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
-
-    # # 创建准确率曲线图
-    # plt.figure(figsize=(10, 5))
-    # plt.plot(accuracy_values, label='Accuracy', color='green')
-    # plt.xlabel('Step')
-    # plt.ylabel('Accuracy')
-    # plt.title('Evaluation Accuracy')
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
+    main(args=_ARGS)
+    exit(1)
     import os
     import json
     import matplotlib.pyplot as plt

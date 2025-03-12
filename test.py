@@ -1,355 +1,304 @@
-import csv
-import json
-import re
-from re import search
-import requests
+import argparse
+import os
+import random
+from peft import LoraConfig, get_peft_model,TaskType
+from matplotlib import pyplot as plt
+import numpy as np
+from datasets import load_dataset,Dataset,ClassLabel
+import evaluate
 import pandas as pd
-import fitz
-import arxiv
-import pyalex
-from pyalex import Works
-from bs4 import BeautifulSoup
-from bs4 import SoupStrainer
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-import time,random
-import requests
-import jieba
-from difflib import SequenceMatcher
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver import ChromeOptions
+import torch,re,itertools
+from transformers import (
+    AutoModelForSequenceClassification, AutoTokenizer, DataCollatorWithPadding,
+    Trainer, TrainingArguments,set_seed,
+)
+from sklearn.metrics import (  # Import various metrics from scikit-learn
+    accuracy_score,  # For calculating accuracy
+    roc_auc_score,  # For ROC AUC score
+    confusion_matrix,  # For confusion matrix
+    classification_report,  # For classification report
+    f1_score  # For F1 score
+)
+_PARSER = argparse.ArgumentParser('dl detector')
+_PARSER.add_argument(
+    '-i', '--input', type=str, help='input file path',
+    default='data'
+)
+_PARSER.add_argument(
+    '-m', '--model-name', type=str, help='model name', default='distilbert/distilbert-base-uncased-finetuned-sst-2-english' # distilbert/distilbert-base-cased distilbert/distilroberta-base distilbert/distilbert-base-uncased-finetuned-sst-2-english albert/albert-base-v2 albert/albert-large-v1
+)
+_PARSER.add_argument('-b', '--batch-size', type=int, default=8, help='batch size')
+_PARSER.add_argument('-g', '--gradient_accumulation_steps', type=int, default=2, help='gradient_accumulation_steps')
+_PARSER.add_argument('-e', '--epochs', type=int, default=2, help='epochs')
+_PARSER.add_argument('--device', '-d', type=str, default='cuda:0', help='device: cuda:0/cpu')
+_PARSER.add_argument('--seed', '-s', type=int, default=42, help='random seed.')
+_PARSER.add_argument('--max-length', type=int, default=512, help='max_length')
+_PARSER.add_argument("--train_fraction", default=0.9, help='paired input')
+_PARSER.add_argument("--learning_rate", default=5e-7, help='paired input')
+_PARSER.add_argument("--warmup_steps", default=50, help='paired input')
+_PARSER.add_argument("--weight_decay", default=0.02, help='paired input')
+_PARSER.add_argument("--all-train", action="store_true", default=False, help='use all data for training')
 
-API_KEY = "d8d0c6d8-d566-4060-8fbb-c6f517383b12"
-API_URL = "https://ark.cn-beijing.volces.com/api/v3"
-
-class Paper:
-    def __init__(self, path):
-        # 初始化函数，根据pdf初始化Paper对象
-        self.path = path
-        self.section_index = {}
-        self.section_text = {}
-        # 配置pyalex
-        pyalex.config.email = "tokaiteio.mejiromcqueen@gmail.com"
-        pyalex.config.max_retries = 1
-
-    def parse_pdf(self):
-        self.pdf = fitz.open(self.path)  # pdf文档
-        self.text_list = [page.get_text() for page in self.pdf]
-        self.all_text = ' '.join(self.text_list)
-        self.get_paragraph()
-        references_text = self.section_text.get("References", "")
-        # 超过2000个字符只取前2000个字符，因为只会判断前10条参考文献
-        if len(references_text)>2000:
-            references_text = references_text[:2000]
-        self.extract_title_from_references(references_text)
-        result = self.search_papers()
-        abstract = self.section_text['Abstract']
-        conclusion = self.section_text['Conclusion']
-        self.pdf.close()
-        return result,abstract,conclusion
-
-    def get_paragraph(self):
-        text = self.all_text
-        # 删去回车和多余空格
-        #text = text.replace('\n', ' ')
-        text = re.sub(r'\s+', ' ', text)
-        section_list = ['Abstract',
-                        'Index Terms',
-                        'Keywords',
-                        'Introduction',
-                        'Conclusion',
-                        'References']
-
-        # 初始化一个字典来存储找到的章节和它们在文档中出现的位置
-        section_index = {}
-        # 查询位置
-        for section_name in section_list:
-            # 将章节名称转换成大写形式
-            section_name_upper = section_name.upper()
-            # 查找关键词的位置(大写)
-            keyword_index = text.find(section_name_upper)
-            if keyword_index != -1:
-                # 提取关键词后的内容
-                section_index[section_name] = keyword_index
-            else:
-                # 查找关键词的位置(小写)
-                keyword_index = text.find(section_name)
-                if keyword_index != -1:
-                    section_index[section_name] = keyword_index
-
-        # 已获得所有找到的章节名称及它们在文档中出现的页码
-        # print(section_index)
-
-        # 初始化一个字典来存储找到的章节和相应内容
-        section_text = {}
-        start = 0  # 开始索引从0开始
-        cur = 'title'
-        # 获取章节内容
-        for index, section_name in enumerate(section_index):
-            end = section_index[section_name]
-            if index == 0:
-                # 取出标题，标题应该在Abstract之前
-                section_text['title'] = text[start:end]
-            elif index == len(section_index) - 1:
-                # 最后一个章节的结束索引就是文本的结尾
-                section_text[cur] = text[start:end]
-                section_text['References'] = text[end + len(section_name):len(text)]
-            else:
-                section_text[cur] = text[start:end]
-
-            start = end + len(section_name)  # 下一个章节的开始索引就是当前章节的结束索引
-            # if cur in section_text:
-            #    print(section_text[cur])
-            cur = str(section_name)
-        # print(section_text['References'])
-
-        self.section_index = section_index
-        self.section_text = section_text
-
-    def search_papers(self):
-        match_cnt = 0
-        for ref in self.references:
-            if ref['type']=="En":
-                if self.search_openalex_papers(ref['title']) == True:
-                    match_cnt += 1
-                    print("OpenAlex found:", ref['title'])
-                elif self.search_arxiv_papers(ref['authors'],ref['title']) == True:
-                    match_cnt += 1
-                    print("arxiv found:", ref['title'])
-            elif ref['type']=="Cn" and re.search(r'[\u4e00-\u9fff]', ref['title']):
-                #删除中文标题之间的空格
-                ref['title'] = ref['title'].replace(" ", "")
-                if self.search_cnki_papers(ref['title']) == True:
-                    print("cnki found:", ref['title'])
-                    match_cnt += 1
-                elif self.search_cqvip_papers(ref['title']) == True:
-                    print("cqvip found:", ref['title'])
-                    match_cnt += 1
-        if match_cnt > 0:
-            percentage = (match_cnt / len(self.references))*100
-            print(f'Papers are found {percentage:.2f}%')
-            return percentage
+_ARGS = _PARSER.parse_args()
+labels_list = ['Human', 'AI']
+def read_train_test(name):
+    df0 = pd.read_csv("./data/Training_Essay_Data.csv", encoding='latin-1')
+    df0 = df0.rename(columns={'generated': 'labels'})  # Rename the columns to standard ones
+    print(df0.shape, df0.columns)
+    df1 = pd.read_csv("./data/final_train.csv")
+    df1 = df1.rename(columns={'label': 'labels'})  # Rename the columns to standard ones
+    print(df1.shape, df1.columns)
+    df2 = pd.read_csv("./data/final_test.csv")
+    df2 = df2.rename(columns={'label': 'labels'})  # Rename the columns to standard ones
+    print(df2.shape, df2.columns)
+    df = pd.concat([df0, df1, df2], axis=0)
+    item0 = df.shape[0]  # Store the initial number of items in the DataFrame
+    df = df.drop_duplicates()  # Remove duplicate rows from the DataFrame
+    item1 = df.shape[0]  # Store the number of items in the DataFrame after removing duplicates
+    print(f"There are {item0 - item1} duplicates found in the dataset")  # Print the number of duplicates removed
+    df = df[['labels', 'text']]  # Select only the 'label' and 'text' columns
+    df = df[~df['text'].isnull()]  # Remove rows where 'text' is null
+    df = df[~df['labels'].isnull()]  # Remove rows where 'label' is null
+    def clean_text(text, stem=True):
+        text = re.sub(r'[^A-Za-z\s]', '', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        text = text.lower()
+        return text
+    def change_label(x):
+        if x:
+            return 'AI'
         else:
-            print('Fake Paper...')
-            return 0
+            return 'Human'
+    df['labels'] = df['labels'].apply(change_label)
+    df['text'] = df['text'].apply(clean_text)
+    print(df.sample(5))  # Display a random sample of 5 rows from the DataFrame
+    # Initialize empty dictionaries to map labels to IDs and vice versa
+    label2id, id2label = dict(), dict()
+    # Iterate over the unique labels and assign each label an ID, and vice versa
+    for i, label in enumerate(labels_list):
+        label2id[label] = i  # Map the label to its corresponding ID
+        id2label[i] = label  # Map the ID to its corresponding label
+    print(label2id, id2label)
+    from sklearn.utils.class_weight import compute_class_weight
+    classes = np.array(labels_list)
+    weights = compute_class_weight(class_weight='balanced', classes=classes, y=df['labels'])
+    # Create a dictionary mapping each class to its respective class weight.
+    class_weights = dict(zip(classes, weights))
+    ordered_weigths = [class_weights[x] for x in id2label.values()]
+    print(ordered_weigths)
+    dataset = Dataset.from_pandas(df)
+    return dataset,label2id, id2label,ordered_weigths
 
-    def search_arxiv_papers(self,authors,title):
-        authors = ','.join(authors)
-        search_title = re.sub(r"[-:]+", " ", f"{authors} {title}")  # 替换 "-" 和 ":" 为空格
-        #print(search_title)
-        client = arxiv.Client()
-        search = arxiv.Search(query=f'ti:{search_title}',max_results=1)
-        if search:
-            for result in client.results(search):
-                # 如果搜索到的论文的名字与ref['title']完全一样，则认为找到了
-                if self.text_similarity(title.lower(),result.title.lower()) :
-                    return True
-                else:
-                   return False
-        else:
-            print("arxiv not found", title)
-            return False
+def compute_metrics(eval_preds):
+    accuracy = evaluate.load("accuracy")
+    logits, labels = eval_preds
+    predictions = np.argmax(logits, axis=-1)
+    return accuracy.compute(predictions=predictions, references=labels)
 
-    def search_openalex_papers(self,title):
-        results = Works().search(title).select(["title"]).get(per_page=1)
-        if results:
-            #for authorship in results[0]["authorships"]:
-            #    author_name = authorship["author"]["display_name"]
-            # 如果搜索到的论文的名字与title完全一样，则认为找到了
-            if self.text_similarity(title.lower(),results[0]['title'].lower()) :
-                return True
-            else:
-                print("title different:",title.lower(),"#",results[0]['title'].lower())
-                return False
-        else:
-            print("OpenAlex not found",title)
-            return False
 
-    def search_cnki_papers(self,title):
-        results = self.fetch_cnki_paper_titles(title)
-        if results:
-            # 如果搜索到的论文的名字与title相似度超过80%，则认为找到了
-            if self.text_similarity(title,results):
-                return True
-            else:
-                return False
-        else:
-            return False
+def main(args: argparse.Namespace):
+    set_seed(42)
+    dataset,label2id, id2label,ordered_weigths = read_train_test(args.input)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name,use_fast=True, low_cpu_mem_usage=False)
+    # Creating classlabels to match labels to IDs
+    ClassLabels = ClassLabel(num_classes=len(labels_list), names=labels_list)
+    def preprocess(example):
+        example['labels'] = ClassLabels.str2int(example['labels'])
+        return tokenizer(example['text'],max_length=args.max_length,truncation=True).to(args.device)
+    remove_columns = ['text']
+    dataset = dataset.map(preprocess,batched=True,remove_columns=remove_columns)
+    dataset = dataset.cast_column('labels', ClassLabels)
 
-    def search_cqvip_papers(self,title):
-        results = self.fetch_cqvip_paper_titles(title)
-        if results:
-            # 如果搜索到的论文的名字与title相似度超过80%，则认为找到了
-            if self.text_similarity(title,results):
-                return True
-            else:
-                return False
-        else:
-            return False
+    # Splitting the dataset into training and testing sets using the predefined train/test split ratio.
+    dataset = dataset.train_test_split(test_size=1 - args.train_fraction, shuffle=True, stratify_by_column="labels")
+    #df_train = dataset['train'].select(range(1000))
+    #df_test = dataset['test'].select(range(200))
+    df_train = dataset['train']
+    df_test = dataset['test']
+    print(df_train.shape, df_test.shape)
+    #print(tokenizer.decode(df_train[0]['input_ids']))
+    model = AutoModelForSequenceClassification.from_pretrained(
+        args.model_name,
+        num_labels=len(labels_list),
+        ignore_mismatched_sizes=True,
+        id2label=id2label,
+        label2id = label2id).to(args.device) # 标签映射
+    output_dir = "./results"  # checkpoint save path
+    peft_config = LoraConfig(
+        task_type=TaskType.SEQ_CLS,  # 序列分类任务
+        inference_mode=False,
+        r=8,  # 低秩矩阵的维度
+        lora_alpha=32,  # 缩放因子
+        lora_dropout=0.05,  # 防止过拟合
+        target_modules=["query", "key", "value", "ffn_output"],
+        bias="none",  # 不训练偏置参数
+    )
+    '''target_modules=["query","key","value","dense"] #针对RoBERT
+            ["query", "key", "value", "ffn_output"] #针对alBERT
+            ["q_lin", "k_lin", "v_lin", "out_lin"], #针对BERT特定模块'''
+    #peft_model = get_peft_model(model, peft_config)
+    #peft_model.print_trainable_parameters()
+    training_args = TrainingArguments(
+        output_dir=output_dir,
+        seed=args.seed,
+        num_train_epochs=args.epochs,
+        per_device_train_batch_size=args.batch_size,
+        gradient_accumulation_steps = args.gradient_accumulation_steps,
+        per_device_eval_batch_size=args.batch_size * 8,
+        learning_rate=args.learning_rate,
+        warmup_steps=args.warmup_steps,
+        weight_decay=args.weight_decay,
+        eval_strategy='steps',
+        eval_steps=2000,
+        save_strategy='steps',
+        save_steps=2000,
+        fp16=True,  # 启用混合精度训练
+        logging_steps=2000,
+        logging_dir='./logs',
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        save_total_limit=1,
+        # gradient_checkpointing=True,  # 启用梯度检查点
+        # torch_compile=True,
+    )
 
-    def getinfo(self,references_content, prompt):
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+    # Print the computed class weights to the console.
+    class WeightedTrainer(Trainer):
+        def compute_loss(self, model, inputs,num_items_in_batch=None,return_outputs=False):
+            labels = inputs.pop("labels")
+            # forward pass
+            outputs = model(**inputs)
+            logits = outputs.get("logits")
+            # compute custom loss (suppose one has labels with different weights)
+            loss_fct = torch.nn.CrossEntropyLoss(weight=torch.tensor(ordered_weigths, device=model.device).float())
+            loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
+            return (loss, outputs) if return_outputs else loss
+    trainer = WeightedTrainer(
+        model,
+        training_args,
+        train_dataset=df_train,
+        eval_dataset=df_test,
+        data_collator=data_collator,
+        processing_class=tokenizer, #旧版本:tokenizer=tokenizer
+        compute_metrics=compute_metrics,
+    )
+    #print(trainer.evaluate())
+    trainer.train()
+    print(trainer.evaluate())
+    # Use the trained 'trainer' to make predictions on the 'df_test'.
+    outputs = trainer.predict(df_test)
+    # Print the metrics obtained from the prediction outputs.
+    print("output metrics: ",outputs.metrics)
+    model_path = "./results/AI-detector-" + args.model_name.replace("/", "-")
+    model.save_pretrained(model_path)
+    tokenizer.save_pretrained(model_path)
+    # 获取训练过程中的指标
+    print("train log: ",trainer.state.log_history)
+    # 分离训练日志与评估日志
+    train_metrics = [log for log in trainer.state.log_history if 'loss' in log]
+    eval_metrics = [log for log in trainer.state.log_history if 'eval_loss' in log]
+    # 提取训练损失
+    train_losses = [log['loss'] for log in train_metrics]
+    train_steps = [log['step'] for log in train_metrics]
+    # 提取评估指标
+    eval_losses = [log['eval_loss'] for log in eval_metrics]
+    eval_accuracies = [log['eval_accuracy'] for log in eval_metrics]
+    eval_steps = [log['step'] for log in eval_metrics]
+
+    # 绘制图表
+    plt.figure(figsize=(16, 5))
+    # 绘制损失曲线（训练和评估）
+    plt.subplot(1, 2, 1)
+    plt.plot(train_steps, train_losses, 'b-', label="Training Loss")
+    plt.plot(eval_steps, eval_losses, 'r--', label="Evaluation Loss")
+    plt.xlabel("Step")
+    plt.ylabel("Loss")
+    plt.xticks(np.unique(train_steps))
+    plt.title("Training vs Evaluation Loss")
+    plt.legend()
+    # 绘制评估准确率曲线
+    plt.subplot(1, 2, 2)
+    plt.plot(eval_steps, eval_accuracies, 'g-', marker='o')
+    plt.xlabel("Step")
+    plt.ylabel("Accuracy (%)")
+    plt.ylim(0, 1.1)
+    plt.xticks(np.unique(eval_steps))
+    plt.title("Evaluation Accuracy Progress")
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(model_path+"/loss and accuracy.png")
+    plt.show()
+
+    y_true = outputs.label_ids
+
+    # Predict the labels by selecting the class with the highest probability
+    y_pred = outputs.predictions.argmax(1)
+
+    # Define a function to plot a confusion matrix
+    def plot_confusion_matrix(cm, classes, title='Confusion Matrix', cmap=plt.cm.Blues, figsize=(10, 8), is_norm=True):
         """
-        使用 OpenAI API 提取参考文献中的信息。
+        This function plots a confusion matrix.
+
+        Parameters:
+            cm (array-like): Confusion matrix as returned by sklearn.metrics.confusion_matrix.
+            classes (list): List of class names, e.g., ['Class 0', 'Class 1'].
+            title (str): Title for the plot.
+            cmap (matplotlib colormap): Colormap for the plot.
         """
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {API_KEY}"
-        }
+        # Create a figure with a specified size
+        plt.figure(figsize=figsize)
 
-        data = {
-            "model": "ep-20250227205656-hsbs4",
-            "messages": [
-                {"role": "system", "content": "你是一个可以提取文献信息的助手,注意辨别中文和英文参考文献"},
-                {"role": "user", "content": prompt + references_content}
-            ],
-            "max_tokens": 15000,
-            "temperature": 0.5
-        }
+        # Display the confusion matrix as an image with a colormap
+        plt.imshow(cm, interpolation='nearest', cmap=cmap)
+        plt.title(title)
+        plt.colorbar()
 
-        response = requests.post(f"{API_URL}/chat/completions", headers=headers, data=json.dumps(data))
-        response_json = response.json()
-        info = response_json['choices'][0]['message']['content'].strip()
-        #print(response_json)
-        #print(info)
-        return info
+        # Define tick marks and labels for the classes on the axes
+        tick_marks = np.arange(len(classes))
+        plt.xticks(tick_marks, classes, rotation=90)
+        plt.yticks(tick_marks, classes)
 
-    def extract_title_from_references(self,references_content):
-        #提取参考文献中的作者，文献类型，标题。
-        title_prompt = "请你帮我将每一个参考文献的作者,是英文还是中文参考文献（中文标Cn,英文标En）,标题提取出来.注意,输出结果按照作者#Cn/En#标题隔开,多个作者直接用;隔开，只返回前十条结果，每个输出结果占一行\n"
-        results = self.getinfo(references_content, title_prompt)
-        results = results.split('\n')
-        refs = []
-        for title in results:
-            parts = title.split('#')
-            # 处理作者列表
-            authors = [author.strip() for author in parts[0].split(';')]
-            refs.append({
-                'authors': authors,
-                'type': parts[1].strip(),
-                'title': parts[2].strip()
-            })
-        self.references=refs
-        #print(refs)
-        print("需要判断的参考文献数量:",len(refs))
-        #print(refs[0])
-        #print(refs[0]['authors'][0])
+        if is_norm:
+            fmt = '.3f'
+        else:
+            fmt = '.0f'
+        # Add text annotations to the plot indicating the values in the cells
+        thresh = cm.max() / 2.0
+        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+            plt.text(j, i, format(cm[i, j], fmt), horizontalalignment="center",
+                     color="white" if cm[i, j] > thresh else "black")
 
-    def fetch_cqvip_paper_titles(self,key_word):
-        url = "http://218.28.6.71:81/"
-        driver_path = r'data/chromedriver-win64/chromedriver.exe'
-        service = Service(driver_path)
-        options = ChromeOptions()
-        options.page_load_strategy = "eager"  # 仅等待 DOM 加载完成，不等待图片等资源
-        driver = webdriver.Chrome(service=service,options=options)
-        driver.get(url)  # 访问目标网址
-        # 定位搜索框并输入关键词
-        try:
-            search_box = WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,
-                                                '#searchKeywords'))
-            )
-            search_box.send_keys(key_word)
-            time.sleep(random.uniform(0.2, 0.5))
-            search_btn = WebDriverWait(driver, 2).until(
-                EC.element_to_be_clickable(
-                    (By.CSS_SELECTOR,
-                     '#btnSearch')
-                )
-            )
-            search_btn.click()
-            WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located((By.CLASS_NAME, 'simple-list'))
-            )
-            content = driver.page_source.encode('utf-8')  # 获取页面源码（可能失效）
-            strainer = SoupStrainer('dl')
-            dl_bf = BeautifulSoup(content, "lxml", parse_only=strainer)
+        # Label the axes
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label')
 
-            # 获取论文标题
-            dt_name = dl_bf.find('dt')  # 拿到dl下的dt
-            dt_name_bf = BeautifulSoup(str(dt_name), 'lxml')
-            a_name = dt_name_bf.find('a')
-            # get_text()是获取标签中的所有文本，包含其子标签中的文本
-            title = a_name.get_text().strip()
-            driver.quit()  # 关闭浏览器窗口
-            # 只返回查找到的第一个标题
-            return str(title)
-        except Exception as e:
-            print(f"发生错误: {e}")
-            return False
+        # Ensure the plot layout is tight
+        plt.tight_layout()
+        plt.savefig(model_path + "/matrix.png")
+        plt.show()
 
-    def fetch_cnki_paper_titles(self,key_word):
-        url = "https://www.cnki.net/"
-        driver_path = r'data/chromedriver-win64/chromedriver.exe'
-        service = Service(driver_path)
-        options = ChromeOptions()
-        options.page_load_strategy = "eager"  # 仅等待 DOM 加载完成，不等待图片等资源
-        driver = webdriver.Chrome(service=service,options=options)
-        driver.get(url)  # 访问目标网址
-        # 定位搜索框并输入关键词
-        try:
-            search_box = WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, '#txt_SearchText'))
-            )
-            search_box.send_keys(key_word)
-            time.sleep(random.uniform(0.2, 0.5))
-            search_btn = WebDriverWait(driver, 2).until(
-                EC.element_to_be_clickable(
-                    (By.CSS_SELECTOR,
-                     'body > div.wrapper > div.searchmain > div.search-tab-content.search-form.cur > div.input-box > input.search-btn')
-                )
-            )
-            search_btn.click()
-            time.sleep(random.uniform(0.2, 0.5))
-            WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located((By.CLASS_NAME, 'result-table-list'))
-            )
-            content = driver.page_source.encode('utf-8')  # 获取页面源码（可能失效）
-            strainer = SoupStrainer('tr')
-            tr_bf = BeautifulSoup(content, "lxml", parse_only=strainer)
+    # Calculate accuracy and F1 score
+    accuracy = accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred, average='macro')
 
-            # 获取论文标题
-            td_name = tr_bf.find('td', class_='name')  # 拿到tr下的td
-            td_name_bf = BeautifulSoup(str(td_name), 'lxml')
-            a_name = td_name_bf.find('a')
-            # get_text()是获取标签中的所有文本，包含其子标签中的文本
-            title = a_name.get_text().strip()
-            driver.quit()  # 关闭浏览器窗口
-            return str(title)
+    # Display accuracy and F1 score
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"F1 Score: {f1:.4f}")
 
-        except Exception as e:
-            print(f"发生错误: {e}")
-            return False
-            """
-            # 获取包含作者的那个td
-            td_author = tr_bf.find_all('td', class_='author')
-            td_author_bf = BeautifulSoup(str(td_author), 'lxml')
-            # 每个a标签中都包含了一个作者名
-            a_author = td_author_bf.find_all('a')
-            authors = []
-            # 拿到每一个a标签里的作者名
-            for author in a_author:
-                name = author.get_text().strip()  # 获取学者的名字
-                #print('name : ' + name)
-                authors.append(name)
-            print(title,authors)
-            """
+    # Get the confusion matrix if there are a relatively small number of labels
+    if len(labels_list) <= 120:
+        # Compute the confusion matrix
+        cm = confusion_matrix(y_true, y_pred, normalize='true')
 
-    def text_similarity(self,text1,text2):
-        # 计算两段文本的相似度（0到1之间）。
-        # 使用 jieba 分词
-        words1 = " ".join(jieba.cut(text1))
-        words2 = " ".join(jieba.cut(text2))
-        # 创建 SequenceMatcher 对象
-        matcher = SequenceMatcher(None, words1, words2)
-        # 返回相似度
-        if matcher.ratio() >= 0.8:
-            return True
-        return False
+        # Plot the confusion matrix using the defined function
+        plot_confusion_matrix(cm, labels_list, figsize=(8, 6))
 
+    # Finally, display classification report
+    print()
+    print("Classification report:")
+    print()
+    print(classification_report(y_true, y_pred, target_names=labels_list, digits=4))
 
 if __name__ == '__main__':
-    path = r'paper/demo3.pdf'
-    paper = Paper(path=path)
-    paper.parse_pdf()
+    main(args=_ARGS)

@@ -1,35 +1,27 @@
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoModelForMaskedLM
-import torch.nn.functional as F
+import random
 import numpy as np
-import get_paper
-import re
-
-def predict_class_probabilities(text, model_path="./models/roberta-large-mnli"):
-    # 加载模型和分词器
-    #tokenizer = AutoTokenizer.from_pretrained("facebook/roberta-hate-speech-dynabench-r4-target")
-    #model = AutoModelForSequenceClassification.from_pretrained("facebook/roberta-hate-speech-dynabench-r4-target")
-    tokenizer = AutoTokenizer.from_pretrained("ProsusAI/finbert")
-    model = AutoModelForSequenceClassification.from_pretrained("ProsusAI/finbert")
-    #tokenizer = AutoTokenizer.from_pretrained("FacebookAI/roberta-large-mnli")
-    #model = AutoModelForSequenceClassification.from_pretrained("FacebookAI/roberta-large-mnli")
-    #model = AutoModelForSequenceClassification.from_pretrained(model_path)
-    #tokenizer = AutoTokenizer.from_pretrained(model_path)
-
+from torch.cuda import seed_all
+from peft import AutoPeftModelForSequenceClassification
+from transformers import pipeline,AutoTokenizer,AutoModelForSequenceClassification,set_seed
+import torch.nn.functional as F
+import torch,re
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+def predict_class_probabilities(text, model,tokenizer):
     # 分词
-    tokenized_text = tokenizer(text, return_tensors="pt", truncation=True)
-    # print(tokenized_text)
-
+    tokenized_text = tokenizer(text, return_tensors="pt", max_length=512,truncation=True,padding="max_length").to(device)
     # 模型推理
-    outputs = model(**tokenized_text)
+    with torch.no_grad():
+        outputs = model(**tokenized_text)
     logits = outputs.logits
-
     # 应用 softmax 函数获取概率分布
     probabilities = F.softmax(logits, dim=1)
-
+    print(probabilities)
     # 获取每个类别的百分比概率
     class_probabilities = probabilities[0].tolist()
 
     return class_probabilities[1]
+# 加载微调后的模型
+
 
 def sentence_prediction(text):
     predictions = []
@@ -58,19 +50,21 @@ def sentence_prediction(text):
 
 
 if __name__ == '__main__':
-    # 使用示例
-#     text = """
-#     Coffee beans, the seeds of the Coffea plant, are the foundation of one of the world's most beloved beverages. With a rich history rooted in Africa, these beans are harvested from the fruit of the coffee plant and go through a meticulous process of transformation, from the initial cherry picking to the final roast.
-# The journey of coffee beans includes two primary processing methods: the dry method, which relies on natural sun-drying, and the wet method, which uses water to remove the fruit layers. Each step, from harvesting to roasting, is a dance of tradition and science that shapes the bean's eventual flavor.
-# Roasting is an art that brings out the beans' character, with the intensity of heat and duration determining the coffee's final taste. The beans are then ground and brewed using a variety of methods, each revealing a different aspect of their complexity.
-# Coffee's impact extends beyond the cup, with potential health benefits and a significant role in the global economy. Yet, the industry is also grappling with sustainability, aiming to protect the environment and support the livelihoods of coffee farmers.
-# In essence, coffee beans are more than just a commodity; they are a testament to human ingenuity and our enduring quest for the perfect cup.
-#     """
-    paper = get_paper.Paper('paper/fake6.pdf')
-    _,abstract,conclusion = paper.parse_pdf()
-    text = abstract
-
-    # 获取预测结果
-    
-    predictions = predict_class_probabilities(text)
-    print(predictions)
+    set_seed(42)
+    model = AutoPeftModelForSequenceClassification.from_pretrained("./results/AI-detector",id2label={0: "Human", 1: "AI"}).to(device)
+    model.eval()
+    tokenizer = AutoTokenizer.from_pretrained("./results/AI-detector",use_fast=True, low_cpu_mem_usage=False)
+    classifier = pipeline(
+        "text-classification",
+        model=model,
+        tokenizer=tokenizer,
+        device=0 if torch.cuda.is_available() else -1,
+        padding="max_length",
+        truncation=True,
+        max_length=512
+    )
+    sample_text = "In many cultures, when a man and a woman get married, it is traditional for the wife to take the husband's last name. This is because, in the past, women were often seen as property of their husbands and taking the husband's last name was a way of showing that the woman belonged to the husband's family.Today, many people still follow this tradition because they believe it is a way to show that they are a family and to show their commitment to each other. However, it is also becoming more common for couples to choose to keep their own last names or to come up with a new last name that combines both of their names. Ultimately, the decision about whether or not to change a name after marriage is a personal one and it is up to the couple to decide what is best for them."
+    result = classifier(sample_text)
+    print(result)
+    print(f"预测结果：{result[0]['label']} (置信度：{result[0]['score']:.2f})")
+    predict_class_probabilities(sample_text,model,tokenizer)
