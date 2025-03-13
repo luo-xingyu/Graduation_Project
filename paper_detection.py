@@ -25,41 +25,38 @@ def processText(text, tokenizer):
     text_tensor = torch.tensor(text["input_ids"], dtype=torch.int32)
     text_attention = torch.tensor(text["attention_masks"], dtype=torch.int32)
     return {"input_ids": text_tensor, "attention_mask": text_attention}
+def detection(paper):
+    tokenizer = RobertaTokenizer.from_pretrained("./results/custom_tokenizer")
+    generatedText = [processText(text, tokenizer) for text in paper]
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = RobertaForSequenceClassification.from_pretrained('distilroberta-base', num_labels=1)
+    model.load_state_dict(torch.load('./results/model_state_dict.pth'))
+    model.to(device)
+    model.eval()
+    eval_loader = DataLoader(generatedText, batch_size=1, shuffle=False)
+    with torch.no_grad():
+        for data in eval_loader:
+            x = data['input_ids'].to(device)
+            attention = data['attention_mask'].to(device)
+            pred = model(x, attention_mask=attention)
+            pred = nn.Sigmoid()(pred.logits)
+            return pred
 if __name__ == '__main__':
-    text_human = [''' Self-training methods such as ELMo (Peters et al.,
-2018), GPT (Radford et al., 2018), BERT
-(Devlin et al., 2019), XLM (Lample and Conneau,
-2019), and XLNet (Yang et al., 2019) have
-brought significant performance gains, but it can
-be challenging to determine which aspects of
-the methods contribute the most. Training is
-computationally expensive, limiting the amount
-of tuning that can be done, and is often done with
-private training data of varying sizes, limiting
-our ability to measure the effects of the modeling
-advances We present a replication study of BERT pretraining (Devlin et al., 2019), which includes a
-careful evaluation of the effects of hyperparmeter
-tuning and training set size. We find that BERT
-was significantly undertrained and propose an improved recipe for training BERT models, which
-we call RoBERTa, that can match or exceed the
-performance of all of the post-BERT methods.
-Our modifications are simple, they include: (1)
-training the model longer, with bigger batches,
-over more data; (2) removing the next sentence
-prediction objective; (3) training on longer sequences; and (4) dynamically changing the masking pattern applied to the training data. We also
-collect a large new dataset (CC-NEWS) of comparable size to other privately used datasets, to better
-control for training set size effects.
-When controlling for training data, our improved training procedure improves upon the published BERT results on both GLUE and SQuAD.
-When trained for longer over additional data, our
-model achieves a score of 88.5 on the public
-GLUE leaderboard, matching the 88.4 reported
-by Yang et al. (2019). Our model establishes a
-new state-of-the-art on 4/9 of the GLUE tasks:
-MNLI, QNLI, RTE and STS-B. We also match
-state-of-the-art results on SQuAD and RACE.
-Overall, we re-establish that BERT’s masked language model training objective is competitive
-with other recently proposed training objectives
-such as perturbed autoregressive language modeling (Yang et al., 2019).2''']
+    text_human = ['''The powerful ability of ChatGPT has caused
+widespread concern in the academic community. Malicious users could synthesize dummy
+academic content through ChatGPT, which is
+extremely harmful to academic rigor and originality. The need to develop ChatGPT-written
+content detection algorithms call for large-scale
+datasets. In this paper, we initially investigate the possible negative impact of ChatGPT on academia, and present a large-scale
+CHatGPT-writtEn AbsTract dataset (CHEAT)
+to support the development of detection algorithms. In particular, the ChatGPT-written
+abstract dataset contains 35,304 synthetic abstracts, with Generation, Polish, and Mix as
+prominent representatives. Based on these data,
+we perform a thorough analysis of the existing
+text synthesis detection algorithms. We show
+that ChatGPT-written abstracts are detectable,
+while the detection difficulty increases with human involvement. Our dataset is available in
+https://github.com/botianzhe/CHEAT''']
     text_ai = [''' 
     Abstract
 This study investigates the correlation between digital literacy competencies and academic achievement among undergraduate students. Through a mixed-methods approach combining survey analysis (n=850) and in-depth interviews (n=30), the research reveals a statistically significant positive relationship (p<0.05) between information evaluation skills and GPA scores. The findings highlight the necessity of integrating digital literacy training into university curricula.
@@ -171,19 +168,4 @@ collect a large new dataset (CC-NEWS) of comparable size to other privately used
 control for training set size effects.
 To comprehensively evaluate the effectiveness of these modifications, we conducted extensive experiments across multiple benchmarks including GLUE, SQuAD, and RACE. Our results demonstrate that RoBERTa achieves state-of-the-art performance without architectural changes, outperforming BERT by 2-5% on various NLP tasks. Crucially, the removal of NSP objectives led to improved coherence in single-document tasks, while dynamic masking prevented overfitting to fixed token patterns observed in static BERT pretraining.
 The extended training duration (160% longer than BERT's original setup) and enlarged batch size (8k tokens vs BERT's 256) enabled more stable gradient estimates and better utilization of parallel computation resources. When trained on our CC-NEWS corpus—a publicly available 160GB text collection—RoBERTa exhibited remarkable domain adaptability, particularly in handling contemporary language patterns and rare vocabulary.''']
-    tokenizer = RobertaTokenizer.from_pretrained("./results/custom_tokenizer")
-    generatedText = [processText(text,tokenizer) for text in text_ai]
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = RobertaForSequenceClassification.from_pretrained('distilroberta-base', num_labels=1)
-    model.load_state_dict(torch.load('./results/model_state_dict.pth'))
-    model.to(device)
-    model.eval()
-
-    eval_loader = DataLoader(generatedText, batch_size=1, shuffle=False)
-    with torch.no_grad():
-        for data in eval_loader:
-            x = data['input_ids'].to(device)
-            attention = data['attention_mask'].to(device)
-            pred = model(x, attention_mask = attention)
-            pred = nn.Sigmoid()(pred.logits)
-            print(pred)
+    print(detection(text_human))

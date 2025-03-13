@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import os
 import get_paper
-import dl_detection
+import hc3_detection
 import ml_detection
 import perplexity
 

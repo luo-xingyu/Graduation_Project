@@ -56,10 +56,6 @@ class Paper:
         #text = text.replace('\n', ' ')
         text = re.sub(r'\s+', ' ', text)
         section_list = ['Abstract',
-                        'Index Terms',
-                        'Keywords',
-                        'Introduction',
-                        'Conclusion',
                         'References']
 
         # 初始化一个字典来存储找到的章节和它们在文档中出现的位置

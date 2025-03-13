@@ -9,28 +9,6 @@ import torch,re
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-def clean_text(text, stem=True):
-    text = re.sub(r'[^A-Za-z\s]', '', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    text = text.lower()
-    return text
-def tokenize_and_pad(sentence, tokenizer, max_length):
-    encoded = tokenizer.encode_plus(
-        sentence,
-        add_special_tokens=True,
-        max_length=max_length,
-        padding='max_length',
-        truncation=True,
-        return_tensors='np'
-    )
-    return {"input_ids": encoded['input_ids'].squeeze(),
-           "attention_masks": encoded["attention_mask"].squeeze()}
-def processText(text, tokenizer):
-    text = clean_text(text)
-    text = tokenize_and_pad(text, tokenizer, 512)
-    text_tensor = torch.tensor(text["input_ids"], dtype=torch.int32)
-    text_attention = torch.tensor(text["attention_masks"], dtype=torch.int32)
-    return {"input_ids": text_tensor, "attention_mask": text_attention}
 def predict_class_probabilities(text, model,tokenizer):
     # 分词
     tokenized_text = tokenizer(text, return_tensors="pt", max_length=512,truncation=True,padding="max_length").to(device)
@@ -130,13 +108,3 @@ if __name__ == '__main__':
     print(result)
     print(f"预测结果：{result[0]['label']} (置信度：{result[0]['score']:.2f})")
     predict_class_probabilities(text_human,model,tokenizer)
-
-    generatedText = [processText(text, tokenizer) for text in text_human]
-    eval_loader = DataLoader(generatedText, batch_size=1, shuffle=False)
-    with torch.no_grad():
-        for data in eval_loader:
-            x = data['input_ids'].to(device)
-            attention = data['attention_mask'].to(device)
-            pred = model(x, attention_mask=attention)
-            pred = nn.Sigmoid()(pred.logits)
-            print(pred)

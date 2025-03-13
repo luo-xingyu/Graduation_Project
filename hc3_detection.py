@@ -63,7 +63,8 @@ if __name__ == '__main__':
         truncation=True,
         max_length=512
     )
-    sample_text = "In many cultures, when a man and a woman get married, it is traditional for the wife to take the husband's last name. This is because, in the past, women were often seen as property of their husbands and taking the husband's last name was a way of showing that the woman belonged to the husband's family.Today, many people still follow this tradition because they believe it is a way to show that they are a family and to show their commitment to each other. However, it is also becoming more common for couples to choose to keep their own last names or to come up with a new last name that combines both of their names. Ultimately, the decision about whether or not to change a name after marriage is a personal one and it is up to the couple to decide what is best for them."
+    sample_text = '''polish, causing damage to academic originality(Khalil and Er, 2023). In this paper, we create the ChatGPT-Polish dataset to support the relevant detection algorithm. Specifically, we employ ChatGPT to output a polished abstract by entering the following command: "Polish the following paragraphs in English, your answer just needs to include the polished text.", followed by the human-written abstract.#
+Mix: Malicious users are likely to mix human-written abstracts with polished abstracts to evade detection algorithms. To address this problem, we create a more challenging dataset, ChatGPT-Mix, based on the polished abstracts. Specifically, we first decompose the polished abstracts and human-written abstracts according to their semantics, then.'''
     result = classifier(sample_text)
     print(result)
     print(f"预测结果：{result[0]['label']} (置信度：{result[0]['score']:.2f})")
