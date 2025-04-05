@@ -58,9 +58,13 @@ def sentence_prediction(text):
 
 if __name__ == '__main__':
     # Example usage:
-    paper = get_paper.Paper('paper/demo.pdf')
-    _,abstract,conclusion = paper.parse_pdf()
-    text = abstract
+    text = '''The rapid advancement of natural language processing (NLP) has been significantly
+driven by transformer-based models, among which RoBERT (A Robustly Optimized BERT
+Pretraining Approach) stands out as a pivotal development. This paper provides an indepth analysis of RoBERT, focusing on its architecture, pretraining methodology, and
+applications across various NLP tasks. We also examine its performance improvements
+over its predecessor, BERT, and discuss the implications of these advancements for future
+research. Through this study, we aim to offer insights into the strengths and limitations
+of RoBERT, as well as its potential for further optimization'''
 
     # 获取预测结果
     

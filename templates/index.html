@@ -32,23 +32,38 @@
                                 </v-card>
                             </div>
                         </v-col>
-                        <v-col v-if="showResults" cols="12" md="7">
+                        
+                        <!-- 加载状态显示 -->
+                        <v-col v-if="isLoading" cols="12" md="7">
+                            <div class="loading-container">
+                                <v-progress-circular
+                                    indeterminate
+                                    color="primary"
+                                    size="64"
+                                ></v-progress-circular>
+                                <div class="loading-text-container">
+                                    <h3 v-text="loadingMessage"></h3>
+                                </div>
+                            </div>
+                        </v-col>
+                        
+                        <v-col v-if="showResults && !isLoading" cols="12" md="7">
                             <div class="results-wrapper">
                                 <div class="result-container">
-                                    <h3>Fake References Ratio</h3>
-                                    <div v-html="fakeReferences"></div>
+                                    <h3>Authentic References Ratio</h3>
+                                    <div v-html="references_ratio"></div>
                                 </div>
                                 <div class="result-container">
-                                    <h3>Fake Abstract Ratio (Roberta)</h3>
-                                    <div v-html="fakeAbstract"></div>
+                                    <h3>Fake Ratio (Roberta)</h3>
+                                    <div v-html="text_ratio"></div>
                                 </div>
                                 <div class="result-container">
-                                    <h3>Fake Abstract Ratio (TF-IDF)</h3>
+                                    <h3>Fake Ratio (TF-IDF)</h3>
                                     <div v-html="tfidf"></div>
                                 </div>
                                 <div class="result-container">
                                     <h3>Abstract judged by PPL</h3>
-                                    <div v-html="abstractJudged"></div>
+                                    <div v-html="ppl"></div>
                                 </div>
                                 <div class="result-container">
                                     <h3>Abstract Result (Yellow means sentence_ppl is below 85)</h3>
@@ -58,11 +73,8 @@
                         </v-col>                        
                     </v-row>
                 </v-container>
-
-
             </div>
         </v-app>
-    </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>

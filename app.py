@@ -1,10 +1,8 @@
 from flask import Flask, render_template, request, jsonify
 import os
 import get_paper
-import hc3_detection
+from detect_paragraph import process_pdf,process_text
 import ml_detection
-import perplexity
-
 app = Flask(__name__)
 
 @app.route('/')
@@ -24,29 +22,35 @@ def upload_file():
     if file:
         # 设置上传文件保存的目录
         upload_path = os.path.join('paper', file.filename)
-        # 保存上传的PDF文件
-        file.save(upload_path)
+        # 如果文件已存在，则覆盖
+        try:
+        # 如果文件已存在，则覆盖
+            with open(upload_path, 'wb') as f:
+                f.write(file.read())
+            print(f"File saved successfully: {upload_path}")
+        except PermissionError as e:
+            print({'error': f'Permission denied: {str(e)}'})
+        except Exception as e:
+            print({'error': f'An error occurred while saving the file: {str(e)}'})
 
         print("Calculating Fake References Ratio ...")
         paper = get_paper.Paper(upload_path)
-        rate, abstract, conclusion = paper.parse_pdf()
+        references_rate = paper.parse_pdf()
         
-        print("Calculating Fake Abstract Ratio(roberta) ...")
-        abstract_ratio = dl_detection.predict_class_probabilities(abstract)
+        print("Calculating Fake Ratio(distilled roberta) ...")
+        text_ratio,ppl = process_pdf(upload_path)
 
         print("Calculating Fake Abstract Ratio(ppl) ...")
-        abstract_ppl, ppl1, text1 = perplexity.predict_class_probabilities(abstract)
     
-        print("Calculating Fake Abstract Ratio(TF-IDF) ...")
-        abstract_ratio_lr = ml_detection.predict_class_probabilities(abstract)
+        #print("Calculating Fake Abstract Ratio(TF-IDF) ...")
+        #abstract_ratio_lr = ml_detection.predict_class_probabilities(abstract)
 
         result = {
-            'rate':rate,
-            'ppl1':ppl1,
-            'abstract_ppl':abstract_ppl,
-            'text1':text1,
-            'abstract_ratio':abstract_ratio,
-            'abstract_ratio_lr':abstract_ratio_lr
+            'rate':references_rate,
+            'ppl':ppl,
+            #'text1':text1,
+            'text_ratio':text_ratio,
+            #'abstract_ratio_lr':abstract_ratio_lr
         }
         return jsonify(result)
 
@@ -58,22 +62,18 @@ def upload_text():
     if not text:
         return jsonify({'error': 'No text provided'})
 
-    print("Calculating Fake Abstract Ratio(roberta) ...")
-    abstract_ratio = dl_detection.predict_class_probabilities(text)
+    print("Calculating Fake Ratio(distilled roberta) ...")
+    text_ratio,ppl = process_text(text)
 
-    print("Calculating Fake Abstract Ratio(ppl) ...")
-    abstract_ppl, ppl1, text1 = perplexity.predict_class_probabilities(text)
-
-    print("Calculating Fake Abstract Ratio(TF-IDF) ...")
-    abstract_ratio_lr = ml_detection.predict_class_probabilities(text)
+    #print("Calculating Fake Abstract Ratio(TF-IDF) ...")
+    #abstract_ratio_lr = ml_detection.predict_class_probabilities(text)
 
     result = {
-        'rate': 0,
-        'ppl1': ppl1,
-        'abstract_ppl': abstract_ppl,
-        'text1': text1,
-        'abstract_ratio': abstract_ratio,
-        'abstract_ratio_lr':abstract_ratio_lr
+        'rate':0,
+        'ppl':ppl,
+        #'text1':text1,
+        'text_ratio':text_ratio,
+        #'abstract_ratio_lr':abstract_ratio_lr
     }
     return jsonify(result)
     

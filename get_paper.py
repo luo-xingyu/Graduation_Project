@@ -1,4 +1,3 @@
-import csv
 import json
 import re
 from re import search
@@ -20,10 +19,13 @@ from difflib import SequenceMatcher
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver import ChromeOptions
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
-API_KEY = "d8d0c6d8-d566-4060-8fbb-c6f517383b12"
-API_URL = "https://ark.cn-beijing.volces.com/api/v3"
-
+#API_KEY = "d8d0c6d8-d566-4060-8fbb-c6f517383b12"
+#API_URL = "https://ark.cn-beijing.volces.com/api/v3"
+API_KEY = "sk-QXFhTtcE8Eo9NpA47501AdC0Da3840Ee96DfDc693400B9Ec" # gpt-4o
+API_URL = "https://apione.zen-x.com.cn/api/v1"
 class Paper:
     def __init__(self, path):
         # 初始化函数，根据pdf初始化Paper对象
@@ -38,95 +40,94 @@ class Paper:
         self.pdf = fitz.open(self.path)  # pdf文档
         self.text_list = [page.get_text() for page in self.pdf]
         self.all_text = ' '.join(self.text_list)
-        self.get_paragraph()
-        references_text = self.section_text.get("References", "")
+        references_text=self.get_references()
         # 超过2000个字符只取前2000个字符，因为只会判断前10条参考文献
         if len(references_text)>2000:
             references_text = references_text[:2000]
         self.extract_title_from_references(references_text)
         result = self.search_papers()
-        abstract = self.section_text['Abstract']
-        conclusion = self.section_text['Conclusion']
         self.pdf.close()
-        return result,abstract,conclusion
+        return result
 
-    def get_paragraph(self):
+    def get_references(self):
+        """提取References之后的文字并返回"""
         text = self.all_text
-        # 删去回车和多余空格
-        #text = text.replace('\n', ' ')
+        # 删去多余空格
         text = re.sub(r'\s+', ' ', text)
-        section_list = ['Abstract',
-                        'References']
-
-        # 初始化一个字典来存储找到的章节和它们在文档中出现的位置
-        section_index = {}
-        # 查询位置
-        for section_name in section_list:
-            # 将章节名称转换成大写形式
-            section_name_upper = section_name.upper()
-            # 查找关键词的位置(大写)
-            keyword_index = text.find(section_name_upper)
-            if keyword_index != -1:
-                # 提取关键词后的内容
-                section_index[section_name] = keyword_index
-            else:
-                # 查找关键词的位置(小写)
-                keyword_index = text.find(section_name)
-                if keyword_index != -1:
-                    section_index[section_name] = keyword_index
-
-        # 已获得所有找到的章节名称及它们在文档中出现的页码
-        # print(section_index)
-
-        # 初始化一个字典来存储找到的章节和相应内容
-        section_text = {}
-        start = 0  # 开始索引从0开始
-        cur = 'title'
-        # 获取章节内容
-        for index, section_name in enumerate(section_index):
-            end = section_index[section_name]
-            if index == 0:
-                # 取出标题，标题应该在Abstract之前
-                section_text['title'] = text[start:end]
-            elif index == len(section_index) - 1:
-                # 最后一个章节的结束索引就是文本的结尾
-                section_text[cur] = text[start:end]
-                section_text['References'] = text[end + len(section_name):len(text)]
-            else:
-                section_text[cur] = text[start:end]
-
-            start = end + len(section_name)  # 下一个章节的开始索引就是当前章节的结束索引
-            # if cur in section_text:
-            #    print(section_text[cur])
-            cur = str(section_name)
-        # print(section_text['References'])
-
-        self.section_index = section_index
-        self.section_text = section_text
+        
+        # 查找References关键词的位置
+        # 先尝试查找大写形式
+        ref_index = text.find("References")
+        # 如果没找到大写形式，再尝试查找首字母大写形式
+        if ref_index == -1:
+            ref_index = text.find("REFERENCES")
+        
+        # 如果找到了References关键词
+        if ref_index != -1:
+            # 提取References之后的所有文本
+            references_text = text[ref_index + len("References"):].strip()
+            return references_text
+        else:
+            # 如果没有找到References关键词，返回空字符串或None
+            return None
 
     def search_papers(self):
+        # 用于存储线程结果的变量
         match_cnt = 0
-        for ref in self.references:
-            if ref['type']=="En":
+        total_refs = len(self.references)
+        results_lock = threading.Lock()  # 用于保护共享资源
+        
+        # 创建处理单个参考文献的函数
+        def process_reference(ref):
+            result = False
+            ref_info = None
+            
+            if ref['type'] == "En":
+                # 处理英文文献
                 if self.search_openalex_papers(ref['title']) == True:
-                    match_cnt += 1
-                    print("OpenAlex found:", ref['title'])
-                elif self.search_arxiv_papers(ref['authors'],ref['title']) == True:
-                    match_cnt += 1
-                    print("arxiv found:", ref['title'])
-            elif ref['type']=="Cn" and re.search(r'[\u4e00-\u9fff]', ref['title']):
-                #删除中文标题之间的空格
-                ref['title'] = ref['title'].replace(" ", "")
-                if self.search_cnki_papers(ref['title']) == True:
-                    print("cnki found:", ref['title'])
-                    match_cnt += 1
-                elif self.search_cqvip_papers(ref['title']) == True:
-                    print("cqvip found:", ref['title'])
-                    match_cnt += 1
+                    ref_info = ("OpenAlex found:", ref['title'])
+                    result = True
+                elif self.search_arxiv_papers(ref['authors'], ref['title']):
+                    ref_info = ("arxiv found:", ref['title'])
+                    result = True
+            elif ref['type'] == "Cn" and re.search(r'[\u4e00-\u9fff]', ref['title']):
+                # 处理中文文献
+                ref_title = ref['title'].replace(" ", "")  # 删除中文标题之间的空格
+                if self.search_cnki_papers(ref_title):
+                    ref_info = ("cnki found:", ref_title)
+                    result = True
+                elif self.search_cqvip_papers(ref_title):
+                    ref_info = ("cqvip found:", ref_title)
+                    result = True
+            
+            return result, ref_info
+        
+        # 使用线程池并行处理引用
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            # 提交所有任务
+            future_to_ref = {executor.submit(process_reference, ref): ref for ref in self.references}
+            print(len(future_to_ref))
+            # 处理完成的任务
+            for future in as_completed(future_to_ref):
+                try:
+                    result, ref_info = future.result()
+                    
+                    # 线程安全地更新计数器和打印信息
+                    with results_lock:
+                        if result==True:
+                            match_cnt += 1
+                        else:
+                            print("Not found")
+                        if ref_info:
+                            print(ref_info[0], ref_info[1])
+                except Exception as e:
+                    print(f"处理参考文献时出错: {e}")
+        
+        # 返回结果
         if match_cnt > 0:
-            percentage = (match_cnt / len(self.references))*100
+            percentage = (match_cnt / total_refs) * 100
             print(f'Papers are found {percentage:.2f}%')
-            return percentage
+            return match_cnt / total_refs
         else:
             print('Fake Paper...')
             return 0
@@ -143,9 +144,10 @@ class Paper:
                 if self.text_similarity(title.lower(),result.title.lower()) :
                     return True
                 else:
+                   #print("arxiv title different:",title.lower(),"#",result.title.lower())
                    return False
         else:
-            print("arxiv not found", title)
+            #print("arxiv not found", title)
             return False
 
     def search_openalex_papers(self,title):
@@ -157,10 +159,10 @@ class Paper:
             if self.text_similarity(title.lower(),results[0]['title'].lower()) :
                 return True
             else:
-                print("title different:",title.lower(),"#",results[0]['title'].lower())
+                #print("openalex title different:",title.lower(),"#",results[0]['title'].lower())
                 return False
         else:
-            print("OpenAlex not found",title)
+            #print("OpenAlex not found",title)
             return False
 
     def search_cnki_papers(self,title):
@@ -195,7 +197,8 @@ class Paper:
         }
 
         data = {
-            "model": "ep-20250227205656-hsbs4",
+            #"model": "ep-20250327155938-zngrc",
+            "model": "gpt-4o",
             "messages": [
                 {"role": "system", "content": "你是一个可以提取文献信息的助手,注意辨别中文和英文参考文献"},
                 {"role": "user", "content": prompt + references_content}
@@ -346,6 +349,6 @@ class Paper:
 
 
 if __name__ == '__main__':
-    path = r'paper/demo3.pdf'
+    path = r'paper\fake.pdf'
     paper = Paper(path=path)
     paper.parse_pdf()

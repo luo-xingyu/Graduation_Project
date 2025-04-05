@@ -47,3 +47,41 @@
 .result-container {
     margin-bottom: 20px; /* 设置容器之间的间距 */
 }
+
+/* 加载状态的样式 */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 10px;
+    padding: 30px;
+    margin-top: 150px;
+    margin-left: 10%;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 80%; /* 确保容器有足够的宽度 */
+}
+
+.loading-text-container {
+    margin-top: 20px;
+    text-align: center;
+    width: 100%; /* 确保文本容器占满父容器宽度 */
+    display: block; /* 确保文本容器显示为块级元素 */
+}
+
+.loading-text-container h3 {
+    font-family: 'Comic Sans MS', cursive;
+    font-size: 18px;
+    color: #333;
+    font-weight: bold;
+    margin: 10px 0; /* 确保有足够的上下边距 */
+    display: block; /* 确保标题显示为块级元素 */
+}
+
+.text-center {
+    font-family: 'Comic Sans MS', cursive;
+    font-size: 18px;
+    color: #333;
+    font-weight: bold;
+}
