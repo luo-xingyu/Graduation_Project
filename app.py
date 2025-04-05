@@ -38,7 +38,7 @@ def upload_file():
         references_rate = paper.parse_pdf()
         
         print("Calculating Fake Ratio(distilled roberta) ...")
-        text_ratio,ppl = process_pdf(upload_path)
+        paragraph_info, avg_score, ppl = process_pdf(upload_path)
 
         print("Calculating Fake Abstract Ratio(ppl) ...")
     
@@ -46,11 +46,10 @@ def upload_file():
         #abstract_ratio_lr = ml_detection.predict_class_probabilities(abstract)
 
         result = {
-            'rate':references_rate,
-            'ppl':ppl,
-            #'text1':text1,
-            'text_ratio':text_ratio,
-            #'abstract_ratio_lr':abstract_ratio_lr
+            'rate': references_rate,
+            'ppl': ppl,
+            'text_ratio': avg_score,
+            'paragraph_info': paragraph_info
         }
         return jsonify(result)
 
@@ -63,17 +62,16 @@ def upload_text():
         return jsonify({'error': 'No text provided'})
 
     print("Calculating Fake Ratio(distilled roberta) ...")
-    text_ratio,ppl = process_text(text)
+    paragraph_info, avg_score, ppl = process_text(text)
 
     #print("Calculating Fake Abstract Ratio(TF-IDF) ...")
     #abstract_ratio_lr = ml_detection.predict_class_probabilities(text)
 
     result = {
-        'rate':0,
-        'ppl':ppl,
-        #'text1':text1,
-        'text_ratio':text_ratio,
-        #'abstract_ratio_lr':abstract_ratio_lr
+        'rate': 0,
+        'ppl': ppl,
+        'text_ratio': avg_score,
+        'paragraph_info': paragraph_info
     }
     return jsonify(result)
     

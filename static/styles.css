@@ -3,7 +3,10 @@
     }
 
 .card-container {
-    margin-top: 100px; /* 调整卡片向下的距离 */
+    margin-top: 5%; /* 使用百分比代替固定像素 */
+    height: 90%; /* 使用百分比代替固定高度 */
+    display: flex;
+    flex-direction: column;
 }
 
 .logo-text {
@@ -35,17 +38,184 @@
 }
 
 .result-container {
-    font-family: 'Comic Sans MS', cursive;
+    margin-bottom: 15px; /* 缩小容器间的间距 */
 }
 
-.results-wrapper {
+/* 分页控制按钮样式 */
+.pagination-controls {
     display: flex;
-    flex-direction: column;
-    margin-left: 10%; /* 在大屏幕上整体向右移动 */
+    justify-content: space-between;
+    margin-bottom: 10px;
 }
 
-.result-container {
-    margin-bottom: 20px; /* 设置容器之间的间距 */
+/* 颜色图例样式 */
+.color-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
+    padding: 8px;
+    background-color: rgba(245, 245, 245, 0.5);
+    border-radius: 4px;
+}
+
+.color-legend span {
+    display: inline-block;
+    margin-right: 5px;
+    border-radius: 3px;
+    padding: 2px 5px;
+}
+
+/* 图例颜色样式 */
+.ai-very-likely-legend {
+    background-color: rgba(220, 53, 69, 0.5); /* 红色 #DC3545 */
+    color: #000;
+    padding: 2px 5px;
+    border-radius: 3px;
+}
+
+.ai-likely-legend {
+    background-color: rgba(253, 126, 20, 0.5); /* 橙色 #FD7E14 */
+    color: #000;
+    padding: 2px 5px;
+    border-radius: 3px;
+}
+
+.uncertain-legend {
+    background-color: rgba(255, 193, 7, 0.5); /* 黄色 #FFC107 */
+    color: #000;
+    padding: 2px 5px;
+    border-radius: 3px;
+}
+
+.human-likely-legend {
+    background-color: rgba(160, 200, 43, 0.5); /* 黄绿色 #A0C82B */
+    color: #000;
+    padding: 2px 5px;
+    border-radius: 3px;
+}
+
+.human-very-likely-legend {
+    background-color: rgba(40, 167, 69, 0.5); /* 深绿色 #28A745 */
+    color: #000;
+    padding: 2px 5px;
+    border-radius: 3px;
+}
+
+/* 文本颜色分类 */
+.ai-very-likely {
+    background-color: transparent;
+    color: #000000;
+    padding: 0px; /* Adjusted padding */
+    margin-bottom: 0px; /* Adjusted margin */
+    border-radius: 0px; /* Adjusted radius */
+    position: relative;
+    z-index: 1;
+}
+
+.ai-very-likely::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #DC3545; /* 红色 */
+    opacity: 0.5;
+    z-index: -1;
+    border-radius: 0px; /* Adjusted radius */
+}
+
+.ai-likely {
+    background-color: transparent;
+    color: #000000;
+    padding: 0px;
+    margin-bottom: 0px;
+    border-radius: 0px;
+    position: relative;
+    z-index: 1;
+}
+
+.ai-likely::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #FD7E14; /* 橙色 */
+    opacity: 0.5;
+    z-index: -1;
+    border-radius: 0px;
+}
+
+.uncertain {
+    background-color: transparent;
+    color: #000000;
+    padding: 0px;
+    margin-bottom: 0px;
+    border-radius: 0px;
+    position: relative;
+    z-index: 1;
+}
+
+.uncertain::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #FFC107; /* 黄色 */
+    opacity: 0.5;
+    z-index: -1;
+    border-radius: 0px;
+}
+
+.human-likely {
+    background-color: transparent;
+    color: #000000;
+    padding: 0px;
+    margin-bottom: 0px;
+    border-radius: 0px;
+    position: relative;
+    z-index: 1;
+}
+
+.human-likely::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #A0C82B; /* 黄绿色 */
+    opacity: 0.5;
+    z-index: -1;
+    border-radius: 0px;
+}
+
+.human-very-likely {
+    background-color: transparent;
+    color: #000000;
+    padding: 0px;
+    margin-bottom: 0px;
+    border-radius: 0px;
+    position: relative;
+    z-index: 1;
+}
+
+.human-very-likely::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #28A745; /* 深绿色 */
+    opacity: 0.5;
+    z-index: -1;
+    border-radius: 0px;
 }
 
 /* 加载状态的样式 */
@@ -85,3 +255,132 @@
     color: #333;
     font-weight: bold;
 }
+
+/* 分页信息样式 */
+.page-info {
+    text-align: center;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.text-results-container {
+    max-height: calc(75vh - 100px); /* 调整为视口高度的75%，留出空间给其他元素 */
+    overflow-y: auto;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.15); /* 半透明背景 */
+    backdrop-filter: blur(5px); /* 背景模糊效果 */
+    margin-bottom: 20px;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #333;
+}
+
+/* 为滚动条添加样式 */
+.text-results-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.text-results-container::-webkit-scrollbar-track {
+    background: rgba(241, 241, 241, 0.3);
+    border-radius: 4px;
+}
+
+.text-results-container::-webkit-scrollbar-thumb {
+    background: rgba(136, 136, 136, 0.5);
+    border-radius: 4px;
+}
+
+.text-results-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(85, 85, 85, 0.7);
+}
+
+/* 调整卡片样式使其填充容器高度 */
+.v-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.v-card__text {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.results-wrapper {
+    display: flex;
+    flex-direction: column;
+    margin-left: 10%; /* 在大屏幕上整体向右移动 */
+    height: calc(90vh - 80px); /* 设置高度为视口高度的90%减去一些边距 */
+}
+
+/* 文本输入框样式 */
+.text-input-area {
+    height: 100%; /* 控制文本区域高度 */
+    margin-bottom: 0 !important; /* 强制移除底部间距 */
+    resize: none !important; /* 禁止调整大小 */
+}
+
+/* 确保文本框占据其父容器的正确高度 */
+.v-textarea.text-input-area {
+    height: 100% !important;
+}
+
+/* 确保v-input__control元素占据父容器的99%高度 */
+.v-textarea.text-input-area .v-input__control {
+    height: 99% !important;
+    min-height: 250px !important;
+}
+
+/* 确保内部输入槽元素占据其父容器的90%高度 */
+.v-textarea.text-input-area .v-input__slot {
+    height: 100% !important;
+    min-height: 250px !important;
+}
+
+/* 确保文本区域内的textarea元素占满整个高度 */
+.v-textarea.text-input-area .v-input__slot textarea {
+    height: 100% !important;
+}
+
+/* 文件输入框样式 */
+.file-input {
+    margin-bottom: 0 !important;
+}
+
+/* 确保按钮与输入框贴近 */
+.v-card-text .v-btn {
+    margin-top: 0;
+}
+
+/* 输入区域整体布局 */
+.input-section {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* 文本区域样式 */
+.text-section {
+    display: flex;
+    flex-direction: column;
+    height: 90%; /* 占据大部分空间 */
+    margin-bottom: 10px;
+}
+
+/* 文件区域样式 */
+.file-section {
+    display: flex;
+    flex-direction: column;
+    height: 10%; /* 占据小部分空间 */
+}
+
+/* 按钮行样式 */
+.button-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0; /* 移除顶部间距使按钮与输入框贴近 */
+    margin-bottom: 5px;
+}
+

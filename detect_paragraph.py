@@ -80,10 +80,36 @@ def process_page(args):
     page_index, paragraphs = extract_paragraphs(page_content, page_index)
     return page_index, paragraphs
 def process_text(text):
-    _,results = extract_paragraphs(text,0)
-    score = distilroberta_detectlist(results)
-    ppl = analyze_textlist(results)
-    return score,ppl
+    _, paragraphs = extract_paragraphs(text, 0)
+    
+    # 为每个段落创建信息字典
+    paragraph_info = []
+    for p in paragraphs:
+        paragraph_info.append({
+            "text": p,
+            "page": 0,  # 为纯文本添加页码，统一设为0
+            "is_cross_page": False  # 纯文本处理不存在跨页
+        })
+    
+    # 创建用于预测的段落列表
+    prediction_paragraphs = [info["text"] for info in paragraph_info]
+    
+    # 获取各个段落预测分数
+    scores = detect(prediction_paragraphs)
+    for i in range(len(scores)):
+        scores[i] = scores[i].item()
+    
+    # 计算加权平均分数
+    avg_score = get_avgscore(prediction_paragraphs)
+    
+    # 将分数添加到段落信息中
+    for i in range(len(paragraph_info)):
+        if i < len(scores):
+            paragraph_info[i]["score"] = scores[i]
+    
+    # 返回段落信息和所有分数
+    return paragraph_info, avg_score, 0
+
 def process_pdf(path):
     pdf = fitz.open(path)  # pdf文档
     text_list = [page.get_text() for page in pdf]
@@ -104,29 +130,119 @@ def process_pdf(path):
     future_results.sort(key=lambda x: x[0])
     #print(future_results[-2])
     # 合并处理结果
-    results = []
+    paragraph_info = []  # 用于存储段落信息的列表
     last_paragraph = ""
+    last_page = -1
     for page_index, paragraphs in future_results:
         if paragraphs:
             # 如果有上一次的最后一个段落，合并到当前结果的第一个段落
             if last_paragraph:
-                paragraphs[0] = last_paragraph + paragraphs[0]
+                # 跨页段落处理
+                cross_paragraph = last_paragraph + paragraphs[0]
+                # 添加上一页的部分段落信息
+                paragraph_info.append({
+                    "text": last_paragraph,
+                    "page": last_page,
+                    "is_cross_page": True,
+                    "cross_id": len(paragraph_info)  # 用于标识跨页段落的ID
+                })
+                # 添加当前页的部分段落信息
+                paragraph_info.append({
+                    "text": paragraphs[0],
+                    "page": page_index,
+                    "is_cross_page": True,
+                    "cross_id": len(paragraph_info) - 1  # 与上半部分共享相同的ID
+                })
+                
+                # 添加当前页的其余段落
+                if len(paragraphs) > 1:
+                    for p in paragraphs[1:-1]:
+                        paragraph_info.append({
+                            "text": p,
+                            "page": page_index,
+                            "is_cross_page": False
+                        })
+                    last_paragraph = paragraphs[-1]
+                    last_page = page_index
+                else:
+                    last_paragraph = ""
             else:
-                # 第一页不存在last_paragraph，将其保存起来
+                # 第一页处理
+                for p in paragraphs[:-1]:
+                    paragraph_info.append({
+                        "text": p,
+                        "page": page_index,
+                        "is_cross_page": False
+                    })
                 last_paragraph = paragraphs[-1]
-            # 当前页的结果除最后一段外都添加到总结果中
-            if len(paragraphs) > 1:
-                results.extend(paragraphs[:-1])
-                last_paragraph = paragraphs[-1]
-    results.append(last_paragraph)
-    score = distilroberta_detectlist(results)
-    #ppl = analyze_textlist(results)
+                last_page = page_index
+    
+    # 添加最后一个段落
+    if last_paragraph:
+        paragraph_info.append({
+            "text": last_paragraph,
+            "page": last_page,
+            "is_cross_page": False
+        })
+    
+    # 创建用于预测的段落列表，将跨页段落拼接起来
+    prediction_paragraphs = []
+    paragraph_to_prediction_index = {}  # 映射原始段落到预测段落的索引
+    prediction_index = 0
+    
+    # 遍历段落信息，处理跨页段落和普通段落
+    i = 0
+    while i < len(paragraph_info):
+        info = paragraph_info[i]
+        
+        if info.get("is_cross_page") and info.get("cross_id") is not None:
+            # 找到跨页段落的另一半
+            for j in range(i+1, len(paragraph_info)):
+                if paragraph_info[j].get("cross_id") == info.get("cross_id"):
+                    # 拼接两部分段落
+                    combined_text = info["text"] + paragraph_info[j]["text"]
+                    prediction_paragraphs.append(combined_text)
+                    
+                    # 建立映射关系
+                    paragraph_to_prediction_index[i] = prediction_index
+                    paragraph_to_prediction_index[j] = prediction_index
+                    
+                    prediction_index += 1
+                    i = j + 1  # 跳过已处理的另一半
+                    break
+            else:
+                # 找不到另一半（不应该发生）
+                prediction_paragraphs.append(info["text"])
+                paragraph_to_prediction_index[i] = prediction_index
+                prediction_index += 1
+                i += 1
+        else:
+            # 普通段落
+            prediction_paragraphs.append(info["text"])
+            paragraph_to_prediction_index[i] = prediction_index
+            prediction_index += 1
+            i += 1
+    
+    # 各个段落预测分数
+    scores = detect(prediction_paragraphs)
+    for i in range(len(scores)):
+        scores[i] = scores[i].item()
+    avg_score = get_avgscore(prediction_paragraphs)
+    # 将分数添加到段落信息中
+    for i in range(len(paragraph_info)):
+        if i in paragraph_to_prediction_index:
+            prediction_idx = paragraph_to_prediction_index[i]
+            if prediction_idx < len(scores):
+                paragraph_info[i]["score"] = scores[prediction_idx]
+    
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"总耗时: {elapsed_time:.2f} 秒")
-    return score,0
+    
+    # 返回每个段落的详细信息
+    return paragraph_info,avg_score,0
 
-def distilroberta_detectlist(content):
+def get_avgscore(content):
     # 存储每个文本段落的预测结果和权重
     predictions = []
     weights = []
@@ -169,7 +285,7 @@ def distilroberta_detectlist(content):
 
 if __name__ == '__main__':
     path = r"paper\dynamic-fusion-cvpr-2015.pdf"
-    score = process_pdf(path)
-    print(score)
+    paragraph_info = process_pdf(path)
+    print(paragraph_info)
     #analyze_textlist(results)
     
