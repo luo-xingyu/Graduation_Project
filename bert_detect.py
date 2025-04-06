@@ -171,9 +171,13 @@ collect a large new dataset (CC-NEWS) of comparable size to other privately used
 control for training set size effects.
 To comprehensively evaluate the effectiveness of these modifications, we conducted extensive experiments across multiple benchmarks including GLUE, SQuAD, and RACE. Our results demonstrate that RoBERTa achieves state-of-the-art performance without architectural changes, outperforming BERT by 2-5% on various NLP tasks. Crucially, the removal of NSP objectives led to improved coherence in single-document tasks, while dynamic masking prevented overfitting to fixed token patterns observed in static BERT pretraining.
 The extended training duration (160% longer than BERT's original setup) and enlarged batch size (8k tokens vs BERT's 256) enabled more stable gradient estimates and better utilization of parallel computation resources. When trained on our CC-NEWS corpus—a publicly available 160GB text collection—RoBERTa exhibited remarkable domain adaptability, particularly in handling contemporary language patterns and rare vocabulary.''']
-    generatedText = ['''Our second key contribution is to represent this volumetric warp efficiently, and compute it in real time. Indeed,
-even a relatively low resolution, 2563 deformation volume
-would require 100 million transformation variables to be
-computed at frame-rate. Our solution depends on a combination of adaptive, sparse, hierarchical volumetric basis
-functions, and innovative algorithmic work to ensure a real time solution on commodity hardware. As a result, DynamicFusion is the first system capable of real-time dense reconstruction in dynamic scenes using a single depth camera''']
+    generatedText = ['''There has been much study of how the underlying
+physics, and the second law of thermodynamics, create a
+direction of time [14, 16]. While physics addresses whether
+the world is the same forwards and backwards, our goal will
+be to assay whether and how the direction of time manifests
+itself visually. This is a fundamental property of the visual
+world that we should understand. Thus we ask the question:
+can we see the Arrow of Time? – can we distinguish a video
+playing forward from one playing backward?''']
     print(detect(generatedText))

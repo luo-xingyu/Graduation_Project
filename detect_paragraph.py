@@ -93,7 +93,10 @@ def process_text(text):
     
     # 创建用于预测的段落列表
     prediction_paragraphs = [info["text"] for info in paragraph_info]
-    
+    for r in prediction_paragraphs:
+        print("#################",len(r))
+        print(r)
+    return
     # 获取各个段落预测分数
     scores = detect(prediction_paragraphs)
     for i in range(len(scores)):
@@ -224,10 +227,12 @@ def process_pdf(path):
             i += 1
     
     # 各个段落预测分数
+    
     scores = detect(prediction_paragraphs)
     for i in range(len(scores)):
         scores[i] = scores[i].item()
     avg_score = get_avgscore(prediction_paragraphs)
+    ppl = analyze_textlist(prediction_paragraphs)
     # 将分数添加到段落信息中
     for i in range(len(paragraph_info)):
         if i in paragraph_to_prediction_index:
@@ -284,8 +289,11 @@ def get_avgscore(content):
         return None
 
 if __name__ == '__main__':
-    path = r"paper\dynamic-fusion-cvpr-2015.pdf"
+    path = r"paper\Ponce_Trinocular_Geometry_Revisited_2014_CVPR_paper.pdf"
+    pdf = fitz.open(path)  # pdf文档
+    #text_list = [page.get_text() for page in pdf]
+    #process_text(text_list[0])
     paragraph_info = process_pdf(path)
-    print(paragraph_info)
+    #print(paragraph_info)
     #analyze_textlist(results)
     
