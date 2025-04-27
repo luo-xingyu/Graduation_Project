@@ -15,19 +15,19 @@
             <div class="bg-image">
                 <div class="logo-text"><v-icon>mdi-calendar</v-icon> GPT Detector</div>
                 <v-container>
-                    <v-row style="min-height: 96vh;">
+                    <v-row>
                         <v-col cols="12" md="5">
                             <div class="card-container">
                                 <v-card elevation="10" style="background-color: #fcf6ee; height: 100%;">
                                     <v-card-title class="text">Was this text written by a human or AI?</v-card-title>
-                                    <div class="subtitle">By Roberta,Perplexity,TF-IDF...</div>
+                                    <div class="subtitle">By Roberta,ML,log_likelihood...</div>
                                     <v-card-text style="height: calc(100% - 80px); display: flex; flex-direction: column;">
                                         <div class="input-section">
                                             <!-- 文本框部分 -->
                                             <div class="text-section">
                                                 <v-textarea 
                                                     v-model="textInput" 
-                                                    label="Paste your text here..." 
+                                                    label="Paste your text here (Note: ML method is only enabled for PDF files)" 
                                                     outlined
                                                     class="text-input-area"
                                                     no-resize
@@ -60,7 +60,7 @@
                         </v-col>
                         
                         <!-- 加载状态显示 -->
-                        <v-col v-if="isLoading" cols="12" md="7" style="min-height: 96vh;">
+                        <v-col v-if="isLoading" cols="12" md="7">
                             <div class="loading-container">
                                 <v-progress-circular
                                     indeterminate
@@ -73,51 +73,55 @@
                             </div>
                         </v-col>
                         
-                        <v-col v-if="showResults && !isLoading" cols="12" md="7" style="min-height: 96vh;">
+                        <v-col v-if="showResults && !isLoading" cols="12" md="7">
                             <div class="results-wrapper">
-                                <div class="result-container">
-                                    <h3>Authentic References Ratio</h3>
-                                    <div v-html="references_ratio"></div>
-                                </div>
-                                <div class="result-container">
-                                    <h3>Fake Ratio (Roberta)</h3>
-                                    <div v-html="text_ratio"></div>
-                                </div>
-                                <div class="result-container">
-                                    <h3>Fake Ratio (TF-IDF)</h3>
-                                    <div v-html="tfidf"></div>
-                                </div>
-                                <div class="result-container">
-                                    <h3>Abstract judged by PPL</h3>
-                                    <div v-html="ppl"></div>
-                                </div>
-                                <div class="result-container">
-                                    <h3>Text Analysis with Color-Coded AI Probability</h3>
-                                    <div class="color-legend">
-                                        <span><b>Color Legend:</b></span>
-                                        <span class="ai-very-likely-legend">0.8-1.0 (Very Likely AI)</span>
-                                        <span class="ai-likely-legend">0.6-0.8 (Likely AI)</span>
-                                        <span class="uncertain-legend">0.4-0.6 (Uncertain)</span>
-                                        <span class="human-likely-legend">0.2-0.4 (Likely Human)</span>
-                                        <span class="human-very-likely-legend">0.0-0.2 (Very Human like)</span>
+                                <div class="upper-section">
+                                    <div class="result-container">
+                                        <h3>Authentic References Ratio</h3>
+                                        <div v-html="references_ratio"></div>
                                     </div>
-                                    
-                                    <!-- 文本显示容器 -->
-                                    <div class="text-results-container" v-html="resultString"></div>
-                                    
-                                    <!-- 分页控制 -->
-                                    <div v-if="maxPage > 0 && !isTextMode" class="pagination-controls">
-                                        <v-btn @click="prevPage" :disabled="currentPage <= 0" small>
-                                            <v-icon small>mdi-chevron-left</v-icon> 上一页
-                                        </v-btn>
-                                        <div class="page-info">第 {% raw %}{{ currentPage + 1 }}{% endraw %} 页，共 {% raw %}{{ maxPage + 1 }}{% endraw %} 页</div>
-                                        <v-btn @click="nextPage" :disabled="currentPage >= maxPage" small>
-                                            下一页 <v-icon small>mdi-chevron-right</v-icon>
-                                        </v-btn>
+                                    <div class="result-container">
+                                        <h3>Fake Ratio (Roberta)</h3>
+                                        <div v-html="text_ratio"></div>
                                     </div>
+                                    <div class="result-container">
+                                        <h3>Fake Ratio (ML)</h3>
+                                        <div v-html="ml_score"></div>
+                                    </div>
+                                    <div class="result-container">
+                                        <h3>Fake Ratio (log_likelihood)</h3>
+                                        <div v-html="ppl"></div>
+                                    </div>
+                                    <div class="result-container">
+                                        <h3>Final AI Score</h3>
+                                        <div v-html="final_score"></div>
+                                    </div>
+                                    <div class="result-container">
+                                        <h3>Text Analysis with Color-Coded AI Probability</h3>
+                                        <div class="color-legend">
+                                            <span><b>Color Legend:</b></span>
+                                            <span class="ai-very-likely-legend">0.8-1.0 (Very Likely AI)</span>
+                                            <span class="ai-likely-legend">0.6-0.8 (Likely AI)</span>
+                                            <span class="uncertain-legend">0.4-0.6 (Uncertain)</span>
+                                            <span class="human-likely-legend">0.2-0.4 (Likely Human)</span>
+                                            <span class="human-very-likely-legend">0.0-0.2 (Very Human like)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- 先显示文本结果 -->
+                                <div class="text-results-container" v-html="resultString"></div>
+                                <!-- 然后显示分页控制 -->
+                                <div class="pagination-controls" v-if="!isTextMode">
+                                    <v-btn @click="prevPage" :disabled="currentPage <= 0">
+                                        <v-icon>mdi-chevron-left</v-icon> Previous
+                                    </v-btn>
+                                    <div class="page-info" v-text="'Page ' + (currentPage + 1) + ' of ' + (maxPage + 1)"></div>
+                                    <v-btn @click="nextPage" :disabled="currentPage >= maxPage">
+                                        Next <v-icon>mdi-chevron-right</v-icon>
+                                    </v-btn>
                                 </div>
                             </div>
-                        </v-col>                        
+                        </v-col>
                     </v-row>
                 </v-container>
             </div>

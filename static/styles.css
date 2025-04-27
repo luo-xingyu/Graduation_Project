@@ -3,20 +3,22 @@
     }
 
 .card-container {
-    margin-top: 5%; /* 使用百分比代替固定像素 */
-    height: 90%; /* 使用百分比代替固定高度 */
+    margin-top: 2vh; /* 使用vh单位 */
+    height: calc(85vh - 20px); /* 留出一些空间给其他元素 */
     display: flex;
     flex-direction: column;
+    margin-bottom: 5vh; /* 添加底部边距 */
 }
 
 .logo-text {
-    position: absolute;
-    top: 20px; /* 控制文字距离顶部的距离 */
-    left: 20px; /* 控制文字距离左侧的距离 */
-    font-size: 24px; /* 控制文字大小 */
-    font-weight: bold; /* 控制文字粗细 */
-    color: #333; /* 控制文字颜色 */
-    z-index: 1000; /* 确保文字处于最上层 */
+    font-family: 'Comic Sans MS', cursive;
+    font-size: 1.8rem;
+    color: #333;
+    padding: 1vh 10px; /* 减小顶部padding */
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 1vh; /* 添加底部间距 */
 }
 
 .bg-image {
@@ -24,49 +26,99 @@
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center center;
-    height: 110vh; /* 使背景图片铺满整个视口 */
+    min-height: 100vh; /* 最小高度确保至少覆盖视口 */
+    height: 100%; /* 允许随内容增长 */
+    position: fixed; /* 固定位置 */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
 }
 
-.text{
+.text {
     font-family: 'Comic Sans MS', cursive;
-    margin-bottom: 0; /* 去除默认的底部间距 */
+    font-size: 1.5rem;
+    color: #333;
+    height: 4vh;
 }
 .subtitle {
     font-family: 'Comic Sans MS', cursive;
-    margin-left: 20px;
-    color: #aba7a7; /* 设置副标题的字体颜色为灰色 */
+    font-size: 1rem;
+    height: 4vh;
+    color: #666;
+    padding: 1vw
 }
 
 .result-container {
-    margin-bottom: 15px; /* 缩小容器间的间距 */
+    margin-bottom: 2px;  
+    padding: 2px;  
 }
 
-/* 分页控制按钮样式 */
-.pagination-controls {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
+.result-container h3 {
+    color: #333;
+    margin-bottom: 2px;
+    font-family: 'Comic Sans MS', cursive;
+    font-size: 17px; /* 减小标题字体大小 */
 }
+
+.result-container div {
+    font-size: 15px; /* 减小数值字体大小 */
+    line-height: 1.2; /* 调整行高使其更紧凑 */
+}
+
+/* Text Analysis 部分的标题样式 */
+.text-results-container h3 {
+    font-family: 'Comic Sans MS', cursive;
+    font-weight: normal; /* 移除加粗 */
+}
+
+/* 为不同类型的结果添加不同的颜色 */
+.result-container:nth-child(1) div { color: #4CAF50; } /* References Ratio */
+.result-container:nth-child(2) div { color: #F44336; } /* Roberta */
+.result-container:nth-child(3) div { color: #FF9800; } /* ML Score */
+.result-container:nth-child(4) div { color: #2196F3; } /* log_likelihood */
+.result-container:nth-child(5) div { color: #9C27B0; } /* Final Score */
 
 /* 颜色图例样式 */
 .color-legend {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 15px;
-    padding: 8px;
+    flex-wrap: nowrap; /* 防止换行 */
+    gap: 5px; /* 减少间距 */
+    margin-bottom: 8px;
+    padding: 5px 7px; /* 减少内边距 */
     background-color: rgba(245, 245, 245, 0.5);
-    border-radius: 4px;
+    border-radius: 5px;
+    font-size: 14px; /* 减小字体大小 */
+    align-items: center; /* 垂直居中对齐 */
 }
 
 .color-legend span {
-    display: inline-block;
-    margin-right: 5px;
+    display: inline-flex;
+    align-items: center;
+    margin-right: 4px;
     border-radius: 3px;
-    padding: 2px 5px;
+    padding: 2px 5px; /* 减少内边距 */
+    white-space: nowrap; /* 防止文字换行 */
 }
 
 /* 图例颜色样式 */
+.ai-very-likely-legend,
+.ai-likely-legend,
+.uncertain-legend,
+.human-likely-legend,
+.human-very-likely-legend {
+    font-size: 14px; /* 进一步减小字体 */
+    padding: 2px 4px;
+    line-height: 1.2;
+}
+
+/* 调整"Color Legend:"标签的样式 */
+.color-legend span:first-child {
+    font-weight: bold;
+    font-size: 14px;
+    margin-right: 4px;
+}
+
 .ai-very-likely-legend {
     background-color: rgba(220, 53, 69, 0.5); /* 红色 #DC3545 */
     color: #000;
@@ -226,8 +278,8 @@
     justify-content: center;
     background-color: rgba(255, 255, 255, 0.8);
     border-radius: 10px;
-    padding: 30px;
-    margin-top: 150px;
+    padding: 20px;
+    margin-top: 100px;
     margin-left: 10%;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     width: 80%; /* 确保容器有足够的宽度 */
@@ -244,7 +296,7 @@
     font-family: 'Comic Sans MS', cursive;
     font-size: 18px;
     color: #333;
-    font-weight: bold;
+    font-weight: normal;
     margin: 10px 0; /* 确保有足够的上下边距 */
     display: block; /* 确保标题显示为块级元素 */
 }
@@ -271,7 +323,7 @@
     border-radius: 4px;
     background-color: rgba(255, 255, 255, 0.15); /* 半透明背景 */
     backdrop-filter: blur(5px); /* 背景模糊效果 */
-    margin-bottom: 20px;
+    margin-bottom: 2px;
     font-size: 16px;
     line-height: 1.5;
     color: #333;
@@ -279,7 +331,7 @@
 
 /* 为滚动条添加样式 */
 .text-results-container::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
 }
 
 .text-results-container::-webkit-scrollbar-track {
@@ -308,17 +360,42 @@
     overflow-y: auto;
 }
 
-.results-wrapper {
-    display: flex;
-    flex-direction: column;
-    margin-left: 10%; /* 在大屏幕上整体向右移动 */
-    height: calc(90vh - 80px); /* 设置高度为视口高度的90%减去一些边距 */
+/* 上半部分（包含所有比率到Text Analysis标题） */
+.upper-section {
+    height: 40vh; /* 占据30%的视窗高度 */
+    overflow-y: auto; /* 如果内容过多允许滚动 */
+    padding: 3px;
+}
+
+/* 文本分析结果容器 */
+.text-results-container {
+    height: 70vh; /* 占据70%的视窗高度 */
+    overflow-y: auto;
+    padding: 5px;
+}
+
+/* 保持其他样式不变 */
+.text-results-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.text-results-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.text-results-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.text-results-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }
 
 /* 文本输入框样式 */
 .text-input-area {
     height: 100%; /* 控制文本区域高度 */
-    margin-bottom: 0 !important; /* 强制移除底部间距 */
     resize: none !important; /* 禁止调整大小 */
 }
 
@@ -329,11 +406,10 @@
 
 /* 确保v-input__control元素占据父容器的99%高度 */
 .v-textarea.text-input-area .v-input__control {
-    height: 99% !important;
+    height: 99% ;
     min-height: 250px !important;
 }
 
-/* 确保内部输入槽元素占据其父容器的90%高度 */
 .v-textarea.text-input-area .v-input__slot {
     height: 100% !important;
     min-height: 250px !important;
@@ -341,12 +417,12 @@
 
 /* 确保文本区域内的textarea元素占满整个高度 */
 .v-textarea.text-input-area .v-input__slot textarea {
-    height: 100% !important;
+    height: 98% !important;
 }
 
 /* 文件输入框样式 */
 .file-input {
-    margin-bottom: 0 !important;
+    margin-bottom: 2px
 }
 
 /* 确保按钮与输入框贴近 */
@@ -365,22 +441,151 @@
 .text-section {
     display: flex;
     flex-direction: column;
-    height: 90%; /* 占据大部分空间 */
-    margin-bottom: 10px;
+    height: 85%; /* 稍微减少高度 */
+    margin-bottom: 5px; /* 减少底部间距 */
 }
 
 /* 文件区域样式 */
 .file-section {
     display: flex;
     flex-direction: column;
-    height: 10%; /* 占据小部分空间 */
+    height: 15%;
+    margin-top: 0; /* 移除顶部间距 */
 }
 
 /* 按钮行样式 */
 .button-row {
     display: flex;
     justify-content: space-between;
-    margin-top: 0; /* 移除顶部间距使按钮与输入框贴近 */
+    margin-top: 2px;
+    margin-bottom: 2px; /* 减少按钮行底部间距 */
+}
+
+/* 文件输入框样式 */
+.file-input {
+    margin-bottom: 2px !important; /* 减少文件输入框底部间距 */
+}
+
+/* Vuetify 文件输入框的特定样式覆盖 */
+.v-file-input .v-input__slot {
+    margin-bottom: 0 !important;
+}
+
+.v-text-field.v-text-field--enclosed .v-text-field__details {
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+/* 调整左右列的容器 */
+.v-container {
+    margin-top: -3vh; /* 整体往上移动 */
+}
+
+/* 左侧卡片容器 */
+.card-container {
+    height: 85vh; /* 减小高度 */
+    margin-top: 2vh;
+    margin-bottom: 2vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 右侧结果容器 */
+.results-wrapper {
+    height: 85vh; /* 减小高度 */
+    margin-top: 2vh;
+    margin-bottom: 2vh;
+    display: flex;
+    flex-direction: column;
+    background-color: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(5px);
+    border-radius: 4px;
+    padding: 1px;
+}
+
+/* 结果内容区域 */
+.text-results-container {
+    flex: 1; /* 让内容区域填充剩余空间 */
+    overflow-y: auto; /* 内容过多时可滚动 */
+    margin-bottom: 2px; /* 为分页按钮留出空间 */
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(5px);
+}
+
+/* 分页控制按钮容器 */
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 4px 8px;
+    margin-top: 8px;
+    border-radius: 4px;
+    position: sticky;
+    bottom: 0;
+    height: 5vh
+}
+
+/* 分页按钮样式 */
+.pagination-controls .v-btn {
+    min-width: 60px; /* 减小按钮最小宽度 */
+    height: 5vh;
+    margin: 0 4px;
+    font-size: 14px; /* 减小字体大小 */
+    text-transform: none; /* 防止文字全部大写 */
+    background-color: rgba(255, 255, 255, 0.15);
+}
+/* 分页按钮悬停效果 */
+.pagination-controls .v-btn:hover {
+    background-color: rgba(255, 255, 255, 1) !important; /* 悬停时完全不透明 */
+}
+/* 页码信息样式 */
+.page-info {
+    font-size: 14px;
+    color: #333;
+    margin: 0 8px;
+    min-width: 5vh;
+    text-align: center;
+}
+
+/* 分页按钮图标大小 */
+.pagination-controls .v-icon {
+    font-size: 14px; /* 减小图标大小 */
+}
+
+/* 确保按钮可见 */
+.v-btn {
+    margin: 0 4px;
+    min-width: 50px;
+}
+
+/* 确保文字清晰可见 */
+.result-container {
+    margin-bottom: 10px;
+}
+
+.result-container h3 {
+    color: #333;
     margin-bottom: 5px;
+}
+
+/* 颜色图例容器样式调整 */
+.color-legend {
+    background-color: rgba(245, 245, 245, 0.3);
+    backdrop-filter: blur(5px);
+
+}
+
+/* 文本框标签样式 */
+.v-textarea .v-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    font-size: 14px; /* 减小字体大小 */
+    line-height: 1.3;
+    padding-right: 8px;
 }
 

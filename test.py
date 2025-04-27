@@ -71,29 +71,31 @@ def custom_piecewise_normalize_parameterized(score, threshold=0.2):
     normalized_value = output_lower_min + relative_position * output_range_len
     # 确保结果在 [0, 0.2] 区间内，防止浮点数精度问题导致略微超出
     return max(output_lower_min, min(normalized_value, output_lower_max))
-model = GPT2PPL()
-sentence = '''RoBERT builds upon BERT's architecture but introduces several optimizations to improve
-efficiency and performance:
-Dynamic Masking : Unlike BERT, which uses static masking during pretraining, RoBERT
-dynamically masks tokens for each epoch. This approach ensures that the model is
-exposed to a wider variety of masked token patterns, enhancing its generalization
-capabilities..
-'''
-length = len(sentence)
-if length < 300:
-    chunk_value = 50
-elif length < 600:
-    chunk_value = length // 6 
-elif length < 800:
-    chunk_value = length // 7 
-elif length < 1000:
-    chunk_value = length // 9
-elif length < 1500:
-    chunk_value = length // 10
-else:
-    chunk_value = 150
-prob,score,_=model(sentence, chunk_value, "v1.1")
-print(prob,score,custom_piecewise_normalize_parameterized(score),norm.cdf(score))
-print(len(sentence),chunk_value)    
+def ppltest():
+    model = GPT2PPL()
+    sentence = '''The difficulties encountered by NNES academic writers are diverse and often interwoven.
+    While individual experiences vary based on factors like L1 background, prior education,
+    and English proficiency level, several common themes emerge in the literature and
+    practice (e.g., Hyland, 2016; Leki, 1992).
+    '''
+    length = len(sentence)
+    if length < 300:
+        chunk_value = 50
+    elif length < 600:
+        chunk_value = length // 6 
+    elif length < 800:
+        chunk_value = length // 7 
+    elif length < 1000:
+        chunk_value = length // 9
+    elif length < 1500:
+        chunk_value = length // 10
+    else:
+        chunk_value = 150
+    prob,score,_=model(sentence, 150, "v1.1")
+    print(prob,score,custom_piecewise_normalize_parameterized(score),norm.cdf(score))
+    print(len(sentence),chunk_value)    
 
-   
+if __name__ == '__main__':
+    from docx2pdf import convert
+    convert('generated_paper.docx')
+

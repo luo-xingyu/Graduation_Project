@@ -216,23 +216,9 @@ def analyze_pdf(pdf_path):
     pdf.close()
     return avg_ppl
 def custom_piecewise_normalize_parameterized(score, threshold=0.3):
-  """
-  将输入值（预期在 -1 到 1 之间）根据阈值进行分段归一化：
-  - 如果 score >= threshold，则线性映射到 [0.8, 1.0] 区间。
-  - 如果 score < threshold，则线性映射到 [0, 0.2] 区间。
-
-  Args:
-    score: 输入的分数，预期在 -1 到 1 之间。
-    threshold: 用于分段的阈值。函数假设 threshold 在 (-1, 1) 范围内
-               以确保两个分段都有意义。
-
-  Returns:
-    归一化后的值，在 [0, 0.2] 或 [0.8, 1.0] 区间内。
-    在 threshold 等于 -1 或 1 的极端情况下，行为可能简化。
-  """
   # 定义输入和输出范围的边界
-  input_min = -1.0
-  input_max = 1.0
+  input_min = -2.0
+  input_max = 2.0
   output_lower_min = 0.0
   output_lower_max = 0.2
   output_upper_min = 0.8
@@ -341,8 +327,7 @@ def analyze_textlist(text_list):
                 chunk_value = length // 10
             else:
                 chunk_value = 150
-            if(length<100):
-                continue
+            
             if not text.strip():
                 print(f"第 {global_idx + 1} 段没有文本内容，跳过")
                 continue
@@ -393,7 +378,10 @@ def analyze_textlist(text_list):
     total_weight = sum(text_lengths)
     weighted_avg_ppl = sum(p * w for p, w in zip(perplexities, text_lengths)) / total_weight
     print(f"处理前加权平均困惑度: {weighted_avg_ppl:.2f}")
-    weighted_avg_ppl = custom_piecewise_normalize_parameterized(weighted_avg_ppl)
+    # 将困惑度根据阈值映射到[0,0.2]或[0.8,1]
+    for i in range(len(perplexities)):
+        perplexities[i]=custom_piecewise_normalize_parameterized(perplexities[i],0.4)
+    weighted_avg_ppl = custom_piecewise_normalize_parameterized(weighted_avg_ppl,0.6)
     # 计算普通平均困惑度（用于对比）
     simple_avg_ppl = sum(perplexities) / len(perplexities)
     
@@ -404,7 +392,7 @@ def analyze_textlist(text_list):
     print(f"普通平均困惑度: {simple_avg_ppl:.2f}")
     print(f"最小段困惑度: {min(perplexities):.2f}")
     print(f"最大段困惑度: {max(perplexities):.2f}")
-    return weighted_avg_ppl
+    return weighted_avg_ppl,perplexities
     
 if __name__ == '__main__':
     path = r"./paper/Aizawa-tf-idfMeasures.pdf"

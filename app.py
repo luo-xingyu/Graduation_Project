@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import os
 import get_paper
-from detect_paragraph import process_pdf,process_text
+from detect_paragraph import final_pdf_detect,final_text_detect
 import ml_detection
 app = Flask(__name__)
 
@@ -37,18 +37,15 @@ def upload_file():
         paper = get_paper.Paper(upload_path)
         references_rate = paper.parse_pdf()
         
-        print("Calculating Fake Ratio(distilled roberta) ...")
-        paragraph_info, avg_score, ppl = process_pdf(upload_path)
-
-        print("Calculating Fake Abstract Ratio(ppl) ...")
-    
-        #print("Calculating Fake Abstract Ratio(TF-IDF) ...")
-        #abstract_ratio_lr = ml_detection.predict_class_probabilities(abstract)
+        print("Calculating Fake Ratio(distilled roberta,ppl,ml) ...")
+        paragraph_info, avg_score, ppl,ml_score,final_score = final_pdf_detect(upload_path)
 
         result = {
             'rate': references_rate,
             'ppl': ppl,
             'text_ratio': avg_score,
+            'ml_score': ml_score,
+            'final_score': final_score,
             'paragraph_info': paragraph_info
         }
         return jsonify(result)
@@ -62,7 +59,7 @@ def upload_text():
         return jsonify({'error': 'No text provided'})
 
     print("Calculating Fake Ratio(distilled roberta) ...")
-    paragraph_info, avg_score, ppl = process_text(text)
+    paragraph_info, avg_score, ppl,ml_score,final_score = final_text_detect(text)
 
     #print("Calculating Fake Abstract Ratio(TF-IDF) ...")
     #abstract_ratio_lr = ml_detection.predict_class_probabilities(text)
@@ -71,6 +68,8 @@ def upload_text():
         'rate': 0,
         'ppl': ppl,
         'text_ratio': avg_score,
+        'ml_score': "not use",
+        'final_score': final_score,
         'paragraph_info': paragraph_info
     }
     return jsonify(result)

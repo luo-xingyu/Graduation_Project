@@ -5,3 +5,10 @@ hc3/
 results/
 parse_paper/
 paper/
+Deprecated_file/
+batch_generated_papers/
+.idea/
+__pycache__/
+catboost_info/
+arxivpaper/
+catboost_info/

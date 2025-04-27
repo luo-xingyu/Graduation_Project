@@ -75,8 +75,8 @@ class GPT2PPLV2:
         self.stride = 51
         self.threshold = 0.2
 
-        self.t5_model = transformers.AutoModelForSeq2SeqLM.from_pretrained("t5-large").to(device).half()
-        self.t5_tokenizer = T5Tokenizer.from_pretrained("t5-large", model_max_length=512)
+        self.t5_model = transformers.AutoModelForSeq2SeqLM.from_pretrained("t5-base").to(device).half()
+        self.t5_tokenizer = T5Tokenizer.from_pretrained("t5-base", model_max_length=512)
 
     def apply_extracted_fills(self, masked_texts, extracted_fills):
         texts = []

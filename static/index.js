@@ -12,10 +12,12 @@ new Vue({
         showResults: false,
         isLoading: false,
         loadingMessage: '准备中...',
-        currentPage: 0,
-        maxPage: 0,
-        paragraphInfo: [], // 存储段落信息
-        isTextMode: false  // 是否是纯文本模式
+        currentPage: 0,        // 确保这里初始化为0
+        maxPage: 0,           // 确保这里初始化为0
+        paragraphInfo: [],    // 存储段落信息
+        isTextMode: false,    // 是否是纯文本模式
+        ml_score: null,       // 添加 ml_score
+        final_score: null     // 添加 final_score
     },
     mounted() {
         // 初始化时在控制台输出，确认Vue实例正确加载
@@ -80,6 +82,8 @@ new Vue({
             this.references_ratio = (result['rate'] * 100).toFixed(2) + "%";
             this.text_ratio = (result['text_ratio'] * 100).toFixed(2) + "%";
             this.ppl = result['ppl'];
+            this.ml_score = result['ml_score'] === "not use" ? "not use" : (result['ml_score'] * 100).toFixed(2) + "%";
+            this.final_score = (result['final_score'] * 100).toFixed(2) + "%";
             
             // 处理段落信息
             if (result['paragraph_info']) {
@@ -188,9 +192,12 @@ new Vue({
 
         // 更新当前页面的显示内容
         updatePageDisplay() {
-            // 判断显示方式
+            if (!this.paragraphInfo || this.paragraphInfo.length === 0) {
+                this.resultString = '<div>没有内容</div>';
+                return;
+            }
+
             let paragraphsToShow;
-            
             if (this.isTextMode) {
                 // 文本模式：显示所有段落
                 paragraphsToShow = this.paragraphInfo;
@@ -198,20 +205,20 @@ new Vue({
                 // PDF模式：筛选当前页的段落
                 paragraphsToShow = this.paragraphInfo.filter(para => para.page === this.currentPage);
             }
-            
+
             if (paragraphsToShow.length === 0) {
-                this.resultString = '<div>没有内容</div>';
+                this.resultString = '<div>当前页面没有内容</div>';
                 return;
             }
-            
+
             // 生成带颜色标记的HTML
             let coloredText = '';
             for (const para of paragraphsToShow) {
-                const score = para.score !== undefined ? para.score : 0.5; // 如果没有分数则默认为0.5
+                const score = para.score !== undefined ? para.score : 0.5;
                 const colorClass = this.getColorForScore(score);
                 coloredText += `<div class="${colorClass}">${para.text}</div><br>`;
             }
-            
+
             this.resultString = coloredText;
         }
     }

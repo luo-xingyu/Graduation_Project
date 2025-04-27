@@ -2,7 +2,7 @@ import requests, time, json
 from bert_detect import detect
 import numpy as np
 import fitz
-import threading
+from ml_detection import ml_pdf_detect,ml_text_detect
 from perplexity import analyze_textlist
 from concurrent.futures import ThreadPoolExecutor
 
@@ -96,7 +96,6 @@ def process_text(text):
     for r in prediction_paragraphs:
         print("#################",len(r))
         print(r)
-    return
     # 获取各个段落预测分数
     scores = detect(prediction_paragraphs)
     for i in range(len(scores)):
@@ -111,7 +110,8 @@ def process_text(text):
             paragraph_info[i]["score"] = scores[i]
     
     # 返回段落信息和所有分数
-    return paragraph_info, avg_score, 0
+    #ppl,perplexitys = analyze_textlist(prediction_paragraphs)
+    return paragraph_info, avg_score,0
 
 def process_pdf(path):
     pdf = fitz.open(path)  # pdf文档
@@ -232,7 +232,6 @@ def process_pdf(path):
     for i in range(len(scores)):
         scores[i] = scores[i].item()
     avg_score = get_avgscore(prediction_paragraphs)
-    ppl = analyze_textlist(prediction_paragraphs)
     # 将分数添加到段落信息中
     for i in range(len(paragraph_info)):
         if i in paragraph_to_prediction_index:
@@ -245,7 +244,8 @@ def process_pdf(path):
     print(f"总耗时: {elapsed_time:.2f} 秒")
     
     # 返回每个段落的详细信息
-    return paragraph_info,avg_score,0
+    ppl,perplexitys = analyze_textlist(prediction_paragraphs)
+    return paragraph_info,avg_score,ppl
 
 def get_avgscore(content):
     # 存储每个文本段落的预测结果和权重
@@ -288,12 +288,26 @@ def get_avgscore(content):
         print("没有找到有效的文本段落")
         return None
 
+def final_pdf_detect(path):
+    paragraph_info,avg_score,ppl = process_pdf(path)
+    ml_score =  ml_pdf_detect(path)
+    final_score = avg_score*0.3+ml_score*0.7
+    print("综合ai率:",final_score)
+    return paragraph_info,avg_score,ppl,ml_score,final_score
+
+def final_text_detect(text):
+    paragraph_info,avg_score,ppl = process_text(text)
+    ml_score =  ml_text_detect(text)
+    final_score = avg_score*0.3+ml_score*0.7
+    print("综合ai率:",final_score)
+    return paragraph_info,avg_score,ppl,ml_score,final_score
+
 if __name__ == '__main__':
-    path = r"paper\Ponce_Trinocular_Geometry_Revisited_2014_CVPR_paper.pdf"
+    path = r"paper\1511.08458v2.pdf"
     pdf = fitz.open(path)  # pdf文档
     #text_list = [page.get_text() for page in pdf]
     #process_text(text_list[0])
-    paragraph_info = process_pdf(path)
-    #print(paragraph_info)
+    paragraph_info = final_pdf_detect(path)
+    print(paragraph_info)
     #analyze_textlist(results)
     
